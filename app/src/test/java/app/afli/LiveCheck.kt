@@ -23,7 +23,8 @@ class LiveCheck {
         val now = System.currentTimeMillis()
 
         val fc = runBlocking { Feeds.forecast(spot.lat, spot.lon) }
-        val live = runBlocking { runCatching { Feeds.live(spot.lat, spot.lon) }.getOrNull() }
+        val liveR = runBlocking { runCatching { Feeds.live(spot.lat, spot.lon) } }
+        val live = liveR.getOrNull()
         val scores = Model.scoreAll(fc.hours, spot)
         val i = fc.hours.indexOfLast { it.t <= now }.coerceAtLeast(0)
         val h = fc.hours[i]
@@ -36,7 +37,7 @@ class LiveCheck {
         out.appendLine("| --- | --- |")
         out.appendLine("| Open-Meteo forecast (${fc.weatherModel}) | ${fc.hours.size} hours; now wind ${n(h.wind)} m/s, gusts ${n(h.gust)}, pressure ${n(h.pressure, 0)} hPa |")
         out.appendLine("| Open-Meteo Marine | sea ${n(h.sst)} °C, waves ${n(h.wave)} m, sea level ${n(h.seaLevel, 2)} m; ${fc.hours.count { !it.seaLevel.isNaN() }} hours with tide |")
-        out.appendLine("| Veðurstofa live | ${live?.let { "${it.station} (${it.distanceKm.roundToInt()} km): ${n(it.wind)} m/s, gusts ${n(it.gust)}, ${n(it.pressure, 0)} hPa" } ?: "missing"} |")
+        out.appendLine("| Veðurstofa live | ${live?.let { "${it.station} (${it.distanceKm.roundToInt()} km): ${n(it.wind)} m/s, gusts ${n(it.gust)}, ${n(it.pressure, 0)} hPa" } ?: "missing (${liveR.exceptionOrNull()?.let { it::class.simpleName + ": " + it.message } ?: "no station within 40 km"})"} |")
         out.appendLine("| Model | score ${s.score} (${s.bite.label}), ${s.safety.label}, best ${s.best?.en ?: "none"}; why: ${s.reasons.take(3).joinToString { it.label }} |")
         File("build").mkdirs()
         File("build/live-check.md").writeText(out.toString())

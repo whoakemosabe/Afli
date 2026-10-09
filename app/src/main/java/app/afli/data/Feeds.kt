@@ -128,27 +128,34 @@ object Feeds {
         return Double.NaN
     }
 
-    /** Newest 10-minute reading from the nearest active Veðurstofa station within 40 km. */
+    /**
+     * Newest 10-minute reading from the nearest Veðurstofa station within 40 km that has
+     * reported in the last 3 hours. One call gets the latest reading from every station; the
+     * station list (cached) gives their positions.
+     */
     suspend fun live(lat: Double, lon: Double): Live? = withContext(Dispatchers.IO) {
         if (!inIceland(lat, lon)) return@withContext null
         val list = stations ?: run {
-            val a = JSONArray(get("https://api.vedur.is/weather/stations?active=true&station_type=sj"))
+            val a = JSONArray(get("https://api.vedur.is/weather/stations?active=true"))
             (0 until a.length()).mapNotNull { i ->
                 val o = a.getJSONObject(i)
                 val sLat = o.num("lat", "latitude")
-                val sLon = o.num("lon", "lng", "longitude")
-                if (sLat.isNaN() || sLon.isNaN()) null
-                else Station(o.optInt("station"), o.optString("name"), sLat, if (sLon > 0 && sLon > 12) -sLon else sLon)
+                val sLon = o.num("lon", "lng", "longitude").let { if (it > 12) -it else it }
+                if (sLat.isNaN() || sLon.isNaN()) null else Station(o.optInt("station"), o.optString("name"), sLat, sLon)
             }.also { stations = it }
         }
-        val near = list.minByOrNull { km(lat, lon, it.lat, it.lon) } ?: return@withContext null
-        val d = km(lat, lon, near.lat, near.lon)
+        val byId = list.associateBy { it.id }
+        val latest = JSONArray(get("https://api.vedur.is/weather/observations/aws/10min/latest"))
+        val readings = (0 until latest.length()).mapNotNull { i ->
+            val o = latest.getJSONObject(i)
+            val st = byId[o.optInt("station")] ?: return@mapNotNull null
+            val wind = o.num("f")
+            if (wind.isNaN()) null else Triple(st, o, km(lat, lon, st.lat, st.lon))
+        }
+        val (st, o, d) = readings.minByOrNull { it.third } ?: return@withContext null
         if (d > 40) return@withContext null
-        val a = JSONArray(get("https://api.vedur.is/weather/observations/aws/10min/latest?station_id=${near.id}"))
-        if (a.length() == 0) return@withContext null
-        val o = a.getJSONObject(0)
         Live(
-            station = near.name,
+            station = st.name,
             distanceKm = d,
             time = o.optString("time"),
             wind = o.num("f"),
