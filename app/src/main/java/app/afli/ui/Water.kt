@@ -36,7 +36,8 @@ half4 main(float2 p) {
     float c = pow(max(c1 * c2, 0.0), 3.0) * 0.12 * (1.0 - y * 0.8);
     col += float3(0.35, 0.65, 0.75) * c;
     // A soft brass glow low on the horizon, like harbour lights on the water.
-    float glow = exp(-pow((uv.y - 0.82) * 6.0, 2.0)) * 0.05;
+    float g = (uv.y - 0.82) * 6.0;
+    float glow = exp(-g * g) * 0.05;
     col += float3(0.85, 0.71, 0.42) * glow;
     return half4(half3(col), 1.0);
 }
