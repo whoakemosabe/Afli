@@ -1,0 +1,196 @@
+package app.afli.ui
+
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxScope
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.CornerBasedShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.background
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.unit.dp
+
+/**
+ * Press effect for anything tappable: a springy squish, the glass lens deepening under the
+ * finger (via the returned press value), a haptic tick on tap, and long-press to explain.
+ */
+class Press(val interaction: MutableInteractionSource, val amount: () -> Float)
+
+@Composable
+fun rememberPress(): Press {
+    val interaction = remember { MutableInteractionSource() }
+    val pressed by interaction.collectIsPressedAsState()
+    val amount by animateFloatAsState(
+        if (pressed) 1f else 0f,
+        spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessMediumLow),
+        label = "press",
+    )
+    // The lambda reads the animated State each time it's drawn, so glass and scale stay live.
+    return remember(interaction) { Press(interaction) { amount } }
+}
+
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+fun Modifier.pressable(
+    press: Press,
+    explain: String? = null,
+    scaleBy: Float = 0.04f,
+    haptic: Boolean = true,
+    onClick: () -> Unit,
+): Modifier {
+    val view = LocalView.current
+    return this
+        .graphicsLayer {
+            val s = 1f - scaleBy * press.amount()
+            scaleX = s
+            scaleY = s
+        }
+        .combinedClickable(
+            interactionSource = press.interaction,
+            indication = null,
+            onLongClick = explain?.let {
+                {
+                    Haptics.reveal(view)
+                    Tips.explain(it)
+                }
+            },
+            onClick = {
+                if (haptic) Haptics.tap(view)
+                onClick()
+            },
+        )
+}
+
+/** Long-press only (for numbers and dials that do nothing on tap). */
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+fun Modifier.explains(text: String): Modifier {
+    val view = LocalView.current
+    val press = rememberPress()
+    return this
+        .graphicsLayer {
+            val s = 1f - 0.03f * press.amount()
+            scaleX = s
+            scaleY = s
+        }
+        .combinedClickable(
+            interactionSource = press.interaction,
+            indication = null,
+            onLongClick = {
+                Haptics.reveal(view)
+                Tips.explain(text)
+            },
+            onClick = {},
+        )
+}
+
+/** A glass card that reacts to touch. */
+@Composable
+fun GlassCard(
+    modifier: Modifier = Modifier,
+    shape: CornerBasedShape = RoundedCornerShape(26.dp),
+    padding: PaddingValues = PaddingValues(18.dp),
+    explain: String? = null,
+    onClick: (() -> Unit)? = null,
+    content: @Composable ColumnScope.() -> Unit,
+) {
+    val backdrop = LocalBackdrop.current
+    val press = rememberPress()
+    var m = modifier
+    if (backdrop != null) m = m.glassCard(backdrop, shape, press = press.amount)
+    else m = m.background(Color(0xCC07121F), shape)
+    m = when {
+        onClick != null -> m.pressable(press, explain, scaleBy = 0.02f, onClick = onClick)
+        explain != null -> m.pressable(press, explain, scaleBy = 0.02f, haptic = false, onClick = {})
+        else -> m
+    }
+    Column(m.padding(padding), content = content)
+}
+
+/** A glass pill button. */
+@Composable
+fun GlassButton(
+    text: String,
+    modifier: Modifier = Modifier,
+    accent: Color = C.foam,
+    style: TextStyle = T.heading,
+    explain: String? = null,
+    leading: (@Composable () -> Unit)? = null,
+    onClick: () -> Unit,
+) {
+    val backdrop = LocalBackdrop.current
+    val press = rememberPress()
+    val shape = RoundedCornerShape(50)
+    var m = modifier
+    m = if (backdrop != null) m.glassControl(backdrop, shape, press = press.amount) else m.background(Color(0x5506111D), shape)
+    Row(
+        m.pressable(press, explain, onClick = onClick).padding(horizontal = 20.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        if (leading != null) {
+            leading()
+            Spacer(Modifier.width(8.dp))
+        }
+        Text(text, style = style.copy(color = accent))
+    }
+}
+
+/** A small glass chip, e.g. a "why" reason or a spot. */
+@Composable
+fun GlassChip(
+    text: String,
+    modifier: Modifier = Modifier,
+    dot: Color? = null,
+    selected: Boolean = false,
+    explain: String? = null,
+    onClick: () -> Unit = {},
+) {
+    val backdrop = LocalBackdrop.current
+    val press = rememberPress()
+    val shape = RoundedCornerShape(50)
+    val tint = if (selected) Color(0x55D8B56A) else Color(0x2605080F)
+    var m = modifier
+    m = if (backdrop != null) m.glassControl(backdrop, shape, press = press.amount, tint = tint) else m.background(tint.copy(alpha = 0.6f), shape)
+    Row(
+        m.pressable(press, explain, onClick = onClick).padding(horizontal = 14.dp, vertical = 9.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        if (dot != null) {
+            Box(Modifier.size(8.dp).background(dot, CircleShape))
+            Spacer(Modifier.width(8.dp))
+        }
+        Text(text, style = T.small.copy(color = if (selected) C.brass else C.foam))
+    }
+}
+
+@Composable
+fun SectionLabel(text: String, modifier: Modifier = Modifier) {
+    Text(text.uppercase(), style = T.label, modifier = modifier.padding(start = 6.dp, bottom = 8.dp))
+}
+
+@Composable
+fun Centered(modifier: Modifier = Modifier, content: @Composable BoxScope.() -> Unit) =
+    Box(modifier, contentAlignment = Alignment.Center, content = content)

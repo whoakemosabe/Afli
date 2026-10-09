@@ -1,0 +1,100 @@
+package app.afli
+
+import app.afli.model.Astro
+import app.afli.model.Bite
+import app.afli.model.Fish
+import app.afli.model.Hour
+import app.afli.model.Model
+import app.afli.model.Safety
+import app.afli.model.Spot
+import app.afli.model.Water
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
+import org.junit.Test
+import java.time.ZonedDateTime
+import java.time.ZoneOffset
+import kotlin.math.PI
+import kotlin.math.sin
+
+class ModelTest {
+    private val keflavik = Spot("k", "Keflavík", 64.0035, -22.556, Water.SEA, facing = 45.0)
+
+    private fun ms(y: Int, mo: Int, d: Int, h: Int, mi: Int = 0) =
+        ZonedDateTime.of(y, mo, d, h, mi, 0, 0, ZoneOffset.UTC).toInstant().toEpochMilli()
+
+    @Test fun sunAtSolsticeNoonInKeflavik() {
+        // Solar noon in Keflavík is about 13:30 UTC; the June sun peaks near 90 - 64 + 23.4 ≈ 49.4°.
+        val e = Astro.sunElevation(ms(2026, 6, 21, 13, 30), 64.0, -22.56)
+        assertEquals(49.4, e, 1.0)
+    }
+
+    @Test fun sunBelowHorizonAtMidnightInDecember() {
+        assertTrue(Astro.sunElevation(ms(2026, 12, 21, 1, 0), 64.0, -22.56) < -30)
+    }
+
+    @Test fun moonPhaseKnownFullMoon() {
+        // Full moon 2026-03-03 ~11:38 UTC.
+        assertEquals(0.5, Astro.moonPhase(ms(2026, 3, 3, 11, 38)), 0.03)
+    }
+
+    @Test fun mackerelNeedsWarmWater() {
+        val m = Fish.byId("makrill")!!
+        assertEquals(0.0, m.temperatureFit(4.0), 1e-9)
+        assertEquals(1.0, m.temperatureFit(10.0), 1e-9)
+        assertTrue(m.temperatureFit(7.0) in 0.5..0.8)
+    }
+
+    private fun series(n: Int, start: Long, sst: Double = 9.0, wind: Double = 5.0, gust: Double = 8.0, wave: Double = 0.8): List<Hour> =
+        (0 until n).map { i ->
+            Hour(
+                t = start + i * 3_600_000L,
+                airTemp = 8.0, precip = 0.0, cloud = 60.0, pressure = 1010.0 - i * 0.4,
+                wind = wind, windDir = 45.0, gust = gust, wave = wave, sst = sst,
+                seaLevel = 1.8 * sin(2 * PI * i / 12.42),
+            )
+        }
+
+    @Test fun scoresStayInRangeAndExplainThemselves() {
+        val hours = series(96, ms(2026, 8, 10, 0))
+        val s = Model.scoreAll(hours, keflavik)
+        assertEquals(96, s.size)
+        assertTrue(s.all { it.score in 0..100 })
+        assertTrue(s.any { it.reasons.isNotEmpty() })
+        assertTrue(s.drop(1).dropLast(1).all { it.tideFlow != null })
+    }
+
+    @Test fun slackTideScoresBelowRunningTide() {
+        val hours = series(96, ms(2026, 8, 10, 0))
+        val s = Model.scoreAll(hours, keflavik)
+        val flowing = s.filter { (it.tideFlow ?: 0.0) > 0.8 }.map { it.score }.average()
+        val slack = s.filter { (it.tideFlow ?: 1.0) < 0.2 }.map { it.score }.average()
+        assertTrue("flowing $flowing slack $slack", flowing > slack)
+    }
+
+    @Test fun safetyFromGustsAndWaves() {
+        val h = Hour(t = 0, wind = 15.0, gust = 25.0, wave = 1.0)
+        assertEquals(Safety.STAY_HOME, Model.safety(h, keflavik).first)
+        assertEquals(Safety.CAREFUL, Model.safety(h.copy(gust = 16.0), keflavik).first)
+        assertEquals(Safety.STAY_HOME, Model.safety(h.copy(gust = 10.0, wave = 4.0), keflavik).first)
+        // A sheltered harbour feels far less of the swell.
+        assertEquals(Safety.SAFE, Model.safety(h.copy(gust = 10.0, wave = 4.0), keflavik.copy(sheltered = true)).first)
+    }
+
+    @Test fun lakeIsClosedAtNightAndOutOfSeason() {
+        val lake = Spot("l", "Kleifarvatn", 63.93, -21.99, Water.LAKE)
+        val night = Model.scoreAll(series(30, ms(2026, 7, 1, 0)), lake, lakeWaterTemp = 10.0)
+        // 2 a.m. in early July is still twilight in Iceland, but December nights are dark.
+        val winter = Model.scoreAll(series(30, ms(2026, 12, 1, 0)), lake, lakeWaterTemp = 3.0)
+        assertTrue(winter.all { it.score == 0 })
+        assertTrue(night.any { it.score > 0 })
+    }
+
+    @Test fun nextWindowSkipsStayHome() {
+        val hours = series(60, ms(2026, 8, 10, 0)).mapIndexed { i, h -> if (i in 20..30) h.copy(gust = 30.0) else h }
+        val s = Model.scoreAll(hours, keflavik)
+        val w = Model.nextWindow(s, hours.first().t, 60)!!
+        val inside = s.filter { it.t >= w.start && it.t < w.end }
+        assertTrue(inside.isNotEmpty() && inside.none { it.safety == Safety.STAY_HOME })
+        assertTrue(Bite.entries.isNotEmpty())
+    }
+}

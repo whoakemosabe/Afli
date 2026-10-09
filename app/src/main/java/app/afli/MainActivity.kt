@@ -1,43 +1,62 @@
 package app.afli
 
+import android.content.Intent
+import android.graphics.Color
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
-import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.Text
-import androidx.compose.ui.Alignment
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.unit.dp
-import com.kyant.backdrop.backdrops.layerBackdrop
-import com.kyant.backdrop.backdrops.rememberLayerBackdrop
-import com.kyant.backdrop.drawBackdrop
-import com.kyant.backdrop.effects.blur
-import com.kyant.backdrop.effects.lens
+import androidx.activity.enableEdgeToEdge
+import androidx.compose.foundation.LocalOverscrollFactory
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.darkColorScheme
+import androidx.compose.runtime.CompositionLocalProvider
+import app.afli.data.Repo
+import app.afli.ui.AfliApp
+import app.afli.ui.Tips
+import app.afli.update.UpdateWatch
+import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        enableEdgeToEdge(
+            statusBarStyle = SystemBarStyle.dark(Color.TRANSPARENT),
+            navigationBarStyle = SystemBarStyle.dark(Color.TRANSPARENT),
+        )
+        Repo.init(this)
+        Tips.bind(Repo.store())
+        UpdateWatch.createChannel(this)
+        UpdateWatch.schedule(this)
+        UpdateWatch.waitingVersion.value = UpdateWatch.waiting(this)
+        handleIntent(intent)
         setContent {
-            val backdrop = rememberLayerBackdrop()
-            Box(Modifier.fillMaxSize()) {
-                Box(Modifier.fillMaxSize().layerBackdrop(backdrop).background(Color(0xFF0B2235)))
-                Box(
-                    Modifier.align(Alignment.Center).size(200.dp).drawBackdrop(
-                        backdrop = backdrop,
-                        shape = { RoundedCornerShape(32.dp) },
-                        effects = {
-                            blur(8.dp.toPx())
-                            lens(16.dp.toPx(), 24.dp.toPx())
-                        },
-                    ),
-                    contentAlignment = Alignment.Center,
-                ) { Text("Afli", color = Color.White) }
+            // No stretch overscroll: it fights the glass and the header fade.
+            CompositionLocalProvider(LocalOverscrollFactory provides null) {
+                MaterialTheme(colorScheme = darkColorScheme()) {
+                    AfliApp()
+                }
             }
+        }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        // Opening the app asks GitHub for a new version at most hourly.
+        lifecycleScope.launch { UpdateWatch.check(this@MainActivity, background = false) }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        handleIntent(intent)
+    }
+
+    /** The "update ready" notification asks to open the update section. */
+    private fun handleIntent(intent: Intent?) {
+        if (intent?.getBooleanExtra(UpdateWatch.EXTRA_OPEN_UPDATES, false) == true) {
+            intent.removeExtra(UpdateWatch.EXTRA_OPEN_UPDATES)
+            UpdateWatch.openUpdates.value = true
         }
     }
 }
