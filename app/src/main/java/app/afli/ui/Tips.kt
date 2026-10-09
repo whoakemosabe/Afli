@@ -2,6 +2,20 @@ package app.afli.ui
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.spring
+import androidx.compose.ui.geometry.RoundRect
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.clipPath
+import androidx.compose.ui.graphics.layer.GraphicsLayer
+import androidx.compose.ui.graphics.layer.drawLayer
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -132,6 +146,7 @@ fun ExplainBubble(modifier: Modifier = Modifier) {
         GlassCard(
             modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
             shape = RoundedCornerShape(22.dp),
+            glow = C.brass,
             onClick = { Tips.dismiss() },
         ) {
             Text(last.value, style = T.body)
@@ -141,33 +156,61 @@ fun ExplainBubble(modifier: Modifier = Modifier) {
     }
 }
 
-/** Dims the screen, cuts a soft hole around the target and shows the step in a glass bubble. */
+/**
+ * The tour: the page behind is blurred (by AfliApp) and dimmed, and the target is cut out of the
+ * dim and redrawn sharp from [page], with a pulsing brass glow around it. The spotlight glides
+ * from one target to the next. Tap anywhere to move on.
+ */
 @Composable
-fun CoachOverlay() {
+fun CoachOverlay(page: GraphicsLayer?) {
     val tour by Tips.tour
     val stepIndex by Tips.step
     val t = tour ?: return
     val step = t.second.getOrNull(stepIndex) ?: return
     val target = Tips.targets[step.target]
     val density = LocalDensity.current
-    val shown by animateFloatAsState(1f, tween(300), label = "coach")
+    val shown = remember(t.first) { Animatable(0f) }
+    LaunchedEffect(t.first) { shown.animateTo(1f, tween(380)) }
+    val pulse by rememberInfiniteTransition(label = "glow").animateFloat(
+        0f, 1f, infiniteRepeatable(tween(1300, easing = FastOutSlowInEasing), RepeatMode.Reverse), label = "pulse",
+    )
+    val glide = spring<Float>(dampingRatio = 0.8f, stiffness = Spring.StiffnessMediumLow)
+    val l by animateFloatAsState(target?.left ?: 0f, glide, label = "l")
+    val tp by animateFloatAsState(target?.top ?: 0f, glide, label = "t")
+    val r by animateFloatAsState(target?.right ?: 0f, glide, label = "r")
+    val b by animateFloatAsState(target?.bottom ?: 0f, glide, label = "b")
     BoxWithConstraints(
         Modifier
             .fillMaxSize()
-            .graphicsLayer { alpha = shown }
+            .graphicsLayer { alpha = shown.value }
             .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) { Tips.next() },
     ) {
         val pad = with(density) { 10.dp.toPx() }
         Canvas(Modifier.fillMaxSize().graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }) {
-            drawRect(Color(0xB3020810))
+            drawRect(Color(0x9E020810))
             if (target != null) {
-                drawRoundRect(
-                    color = Color.Black,
-                    topLeft = Offset(target.left - pad, target.top - pad),
-                    size = androidx.compose.ui.geometry.Size(target.width + pad * 2, target.height + pad * 2),
-                    cornerRadius = CornerRadius(28f * density.density),
-                    blendMode = BlendMode.Clear,
-                )
+                val corner = CornerRadius(28.dp.toPx())
+                val topLeft = Offset(l - pad, tp - pad)
+                val box = androidx.compose.ui.geometry.Size(r - l + pad * 2, b - tp + pad * 2)
+                drawRoundRect(Color.Black, topLeft, box, corner, blendMode = BlendMode.Clear)
+                // The target itself, sharp, from the unblurred recording of the page.
+                if (page != null) {
+                    val hole = Path().apply { addRoundRect(RoundRect(Rect(topLeft, box), corner)) }
+                    clipPath(hole) { drawLayer(page) }
+                }
+                // Brass glow: soft rings fading outward, breathing gently, then a crisp rim.
+                val breathe = 0.55f + 0.45f * pulse
+                for (k in 1..5) {
+                    val grow = k * 3.dp.toPx()
+                    drawRoundRect(
+                        C.brass.copy(alpha = (0.26f - k * 0.045f).coerceAtLeast(0.02f) * breathe),
+                        Offset(topLeft.x - grow / 2, topLeft.y - grow / 2),
+                        androidx.compose.ui.geometry.Size(box.width + grow, box.height + grow),
+                        CornerRadius(corner.x + grow / 2),
+                        style = Stroke(width = 3.dp.toPx()),
+                    )
+                }
+                drawRoundRect(C.brass.copy(alpha = 0.75f + 0.25f * pulse), topLeft, box, corner, style = Stroke(width = 1.5.dp.toPx()))
             }
         }
         val screenH = with(density) { maxHeight.toPx() }
@@ -185,7 +228,7 @@ fun CoachOverlay() {
                 .padding(horizontal = 20.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            GlassCard(Modifier.widthIn(max = 420.dp), shape = RoundedCornerShape(24.dp), onClick = { Tips.next() }) {
+            GlassCard(Modifier.widthIn(max = 420.dp), shape = RoundedCornerShape(24.dp), glow = C.brass, onClick = { Tips.next() }) {
                 Text(step.title, style = T.heading.copy(color = C.brass))
                 Spacer(Modifier.height(6.dp))
                 Text(step.text, style = T.body)

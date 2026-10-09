@@ -54,6 +54,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.blur
+import androidx.compose.ui.graphics.rememberGraphicsLayer
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
@@ -98,7 +99,18 @@ fun AfliApp() {
     val statusTop = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
     val headerH = statusTop + 64.dp
     val contentTop = headerH + 8.dp
-    val blur by animateDpAsState(if (sheet != null) 18.dp else 0.dp, tween(320), label = "sheetBlur")
+    val touring by Tips.tour
+    val blur by animateDpAsState(
+        when {
+            sheet != null -> 18.dp
+            touring != null -> 12.dp
+            else -> 0.dp
+        },
+        tween(320),
+        label = "pageBlur",
+    )
+    // A sharp recording of the page, so a tip's spotlight can show its target unblurred.
+    val pageLayer = rememberGraphicsLayer()
 
     CompositionLocalProvider(LocalBackdrop provides backdrop) {
         Box(Modifier.fillMaxSize().background(C.navy)) {
@@ -110,7 +122,7 @@ fun AfliApp() {
                     onboarded = true
                 }
             } else Box(Modifier.fillMaxSize()) {
-            Box(Modifier.fillMaxSize().blur(blur)) {
+            Box(Modifier.fillMaxSize().blur(blur).backdropSource(pageLayer)) {
                 AnimatedContent(
                     tab,
                     transitionSpec = {
@@ -185,7 +197,7 @@ fun AfliApp() {
                 }
             }
 
-            CoachOverlay()
+            CoachOverlay(pageLayer)
             }
         }
     }

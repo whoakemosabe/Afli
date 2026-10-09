@@ -21,6 +21,8 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.CornerBasedShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -114,13 +116,15 @@ fun GlassCard(
     shape: CornerBasedShape = RoundedCornerShape(26.dp),
     padding: PaddingValues = PaddingValues(18.dp),
     explain: String? = null,
+    glow: Color? = null,
     onClick: (() -> Unit)? = null,
     content: @Composable ColumnScope.() -> Unit,
 ) {
     val backdrop = LocalBackdrop.current
     val press = rememberPress()
     var m = modifier
-    if (backdrop != null) m = m.glassCard(backdrop, shape, press = press.amount)
+    if (glow != null) m = m.border(1.dp, Brush.verticalGradient(listOf(glow.copy(alpha = 0.95f), glow.copy(alpha = 0.35f))), shape)
+    if (backdrop != null) m = m.glassCard(backdrop, shape, press = press.amount, glow = glow)
     else m = m.background(Color(0xCC07121F), shape)
     m = when {
         onClick != null -> m.pressable(press, explain, scaleBy = 0.02f, onClick = onClick)
