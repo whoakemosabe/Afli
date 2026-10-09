@@ -97,7 +97,14 @@ fun Modifier.glassCard(
     },
     highlight = { Highlight(width = 1.dp, style = HighlightStyle.Default(angle = 45f)) },
     // A glow colour turns the shadow into a soft halo, used to make tips stand out.
-    shadow = { if (glow != null) Shadow(radius = 28.dp, color = glow.copy(alpha = 0.45f * glow.alpha)) else Shadow(radius = 22.dp, color = Color.Black.copy(alpha = 0.28f)) },
+    // A glow blends the dark drop shadow into a soft halo as its alpha rises, so it never jumps.
+    shadow = {
+        val a = glow?.alpha ?: 0f
+        Shadow(
+            radius = 22.dp + 8.dp * a,
+            color = androidx.compose.ui.graphics.lerp(Color.Black.copy(alpha = 0.28f), (glow ?: Color.Black).copy(alpha = 0.45f), a),
+        )
+    },
     onDrawSurface = {
         drawRect(if (glassFull) tint else tint.copy(alpha = 0.82f))
         drawRect(Brush.verticalGradient(listOf(Color(0x18FFFFFF), Color(0x04FFFFFF))))

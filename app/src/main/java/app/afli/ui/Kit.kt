@@ -2,6 +2,7 @@ package app.afli.ui
 
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.tween
 import androidx.compose.runtime.LaunchedEffect
@@ -145,7 +146,12 @@ fun GlassCard(
     if (glow != null) lastGlow.value = glow
     // Starts at zero, so a card that appears already glowing (an opened panel, a tip) fades in too.
     val glowAnim = remember { Animatable(0f) }
-    LaunchedEffect(glow != null) { glowAnim.animateTo(if (glow != null) 1f else 0f, tween(if (glow != null) 520 else 360)) }
+    LaunchedEffect(glow != null) {
+        glowAnim.animateTo(
+            if (glow != null) 1f else 0f,
+            if (glow != null) tween(750, delayMillis = 140, easing = FastOutSlowInEasing) else tween(320, easing = FastOutSlowInEasing),
+        )
+    }
     val g = glowAnim.value
     val gc = lastGlow.value
     val shownGlow = if (g > 0.01f) gc.copy(alpha = g) else null

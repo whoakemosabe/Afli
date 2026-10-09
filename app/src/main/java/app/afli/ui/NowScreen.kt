@@ -647,8 +647,10 @@ private fun ConditionTiles(s: UiState, spot: Spot, hours: List<Hour>, sel: Int, 
             val inRow = row.firstOrNull { it.key == open }
             AnimatedVisibility(
                 inRow != null,
-                enter = expandVertically(spring(dampingRatio = 0.85f, stiffness = Spring.StiffnessMediumLow)) + fadeIn(),
-                exit = shrinkVertically(tween(220)) + fadeOut(tween(160)),
+                // No clipping while it grows, so the rounded glass, its rim and glow never get cut
+                // square; the content fades in as it opens.
+                enter = expandVertically(spring(dampingRatio = 0.9f, stiffness = Spring.StiffnessMediumLow), clip = false) + fadeIn(tween(320, delayMillis = 60)),
+                exit = shrinkVertically(tween(240), clip = false) + fadeOut(tween(180)),
             ) {
                 // Keep showing the last open tile while this panel closes.
                 val last = remember { arrayOfNulls<String>(1) }
