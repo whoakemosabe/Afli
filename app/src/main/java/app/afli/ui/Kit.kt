@@ -33,6 +33,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -139,10 +140,16 @@ fun GlassCard(
     val backdrop = LocalBackdrop.current
     val press = rememberPress()
     val squish = if (onClick != null || explain != null) press.squishLayer(0.02f) else null
+    // The glow fades in and out rather than snapping, keeping its last colour while it fades.
+    val lastGlow = remember { mutableStateOf(glow ?: C.brass) }
+    if (glow != null) lastGlow.value = glow
+    val g by animateFloatAsState(if (glow != null) 1f else 0f, tween(420), label = "glow")
+    val gc = lastGlow.value
+    val shownGlow = if (g > 0.01f) gc.copy(alpha = g) else null
     var m = modifier
-    m = if (backdrop != null) m.glassCard(backdrop, shape, press = press.amount, glow = glow, layer = squish)
+    m = if (backdrop != null) m.glassCard(backdrop, shape, press = press.amount, glow = shownGlow, layer = squish)
     else m.let { if (squish != null) it.graphicsLayer(squish) else it }.background(Color(0xCC07121F), shape)
-    if (glow != null) m = m.border(1.dp, Brush.verticalGradient(listOf(glow.copy(alpha = 0.95f), glow.copy(alpha = 0.35f))), shape)
+    if (shownGlow != null) m = m.border(1.dp, Brush.verticalGradient(listOf(gc.copy(alpha = 0.95f * g), gc.copy(alpha = 0.35f * g))), shape)
     m = when {
         onClick != null -> m.pressable(press, explain, scaleBy = 0f, onClick = onClick)
         explain != null -> m.pressable(press, explain, scaleBy = 0f, haptic = false, onClick = {})

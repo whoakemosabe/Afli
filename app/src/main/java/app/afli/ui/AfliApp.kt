@@ -286,15 +286,7 @@ private fun BottomBar(selected: Int, modifier: Modifier, onSelect: (Int) -> Unit
             .padding(horizontal = 20.dp, vertical = 12.dp)
             .fillMaxWidth()
             .height(64.dp)
-            .let {
-                val squish: GraphicsLayerScope.() -> Unit = {
-                    val k = held()
-                    scaleX = 1f - 0.035f * k
-                    scaleY = 1f - 0.06f * k
-                }
-                if (backdrop != null) it.glassControl(backdrop, shape, press = held, layer = squish)
-                else it.graphicsLayer(squish).background(Color(0xCC07121F), shape)
-            }
+            .let { if (backdrop != null) it.glassControl(backdrop, shape, press = held) else it.background(Color(0xCC07121F), shape) }
             .border(1.dp, Rim, shape),
     ) {
         val w = maxWidth / tabs.size
@@ -329,8 +321,8 @@ private fun BottomBar(selected: Int, modifier: Modifier, onSelect: (Int) -> Unit
                         }
                         .graphicsLayer {
                             val k = presses[i].amount()
-                            scaleX = 1f - 0.12f * k
-                            scaleY = 1f - 0.12f * k
+                            scaleX = 1f - 0.16f * k
+                            scaleY = 1f - 0.16f * k
                         },
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.Center,
