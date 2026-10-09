@@ -80,4 +80,6 @@ dependencies {
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.11.0")
 
     testImplementation("junit:junit:4.13.2")
+    // The real org.json for unit tests (Android's is a stub there), used by the live feed check.
+    testImplementation("org.json:json:20250517")
 }

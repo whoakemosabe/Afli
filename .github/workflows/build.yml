@@ -63,12 +63,28 @@ jobs:
       - name: Name the APK
         run: cp app/build/outputs/apk/release/app-release.apk afli.apk
 
+      - name: Live feed check
+        continue-on-error: true
+        env:
+          LIVE_CHECK: "1"
+        run: ./gradlew --no-daemon testDebugUnitTest --tests app.afli.LiveCheck --rerun
+
+      - name: Show live check
+        if: always()
+        shell: bash
+        run: |
+          [ -f app/build/live-check.md ] || exit 0
+          msg=$(sed ':a;N;$!ba;s/%/%25/g;s/\r/%0D/g;s/\n/%0A/g' app/build/live-check.md)
+          echo "::notice title=Live check::${msg}"
+
       - name: Release notes
         run: |
           {
             echo "Tap **afli.apk** below on your phone to install or update."
             echo
             echo "Built from ${GITHUB_SHA}."
+            echo
+            cat app/build/live-check.md 2>/dev/null || echo "_Live feed check didn't complete._"
           } > notes.md
 
       - name: Keep the check build
@@ -77,7 +93,9 @@ jobs:
         uses: actions/upload-artifact@v5
         with:
           name: afli-check-build
-          path: afli.apk
+          path: |
+            afli.apk
+            notes.md
           retention-days: 7
 
       - name: Publish release
