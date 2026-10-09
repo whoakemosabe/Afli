@@ -151,7 +151,7 @@ fun NowScreen(
     val view = LocalView.current
     val sel = Scrub.index(s)
     val now = s.scores.getOrNull(sel)
-    val hours = s.forecast?.hours.orEmpty()
+    val hours = s.hours
     val h = hours.getOrNull(sel)
 
     LaunchedEffect(spot?.id) { Scrub.reset() }
@@ -691,6 +691,10 @@ private fun TileCard(tile: Tile, open: Boolean, modifier: Modifier, onClick: () 
     }
 }
 
+/** "now", or the day and time being shown on the time strip. */
+private fun whenLabel(s: UiState, sel: Int, ms: Long): String =
+    if (sel == s.nowIndex) t("now", "núna") else "${dayWord(ms).lowercase(app.afli.L.locale)} ${clock(ms)}"
+
 private fun buildTiles(s: UiState, spot: Spot, hours: List<Hour>, sel: Int, h: Hour, now: HourScore): List<Tile> {
     val sea = spot.water == Water.SEA
     val out = mutableListOf<Tile>()
@@ -723,9 +727,9 @@ private fun buildTiles(s: UiState, spot: Spot, hours: List<Hour>, sel: Int, h: H
                 }
             }
             Spacer(Modifier.height(10.dp))
-            Text(t("Next 24 hours", "Næsta sólarhring"), style = T.small)
+            Text(t("24 hours from ", "Sólarhringur frá ") + whenLabel(s, sel, h.t), style = T.small)
             Sparkline(sl.map { it.wind }, Modifier.fillMaxWidth().height(56.dp), C.foam, marker = mk, floor = 4.0, zeroBased = true)
-            HourAxis(sl.map { it.t }, Modifier.fillMaxWidth().height(14.dp))
+            HourAxis(sl.map { it.t }, Modifier.fillMaxWidth().height(14.dp), points = true)
             s.live?.let { l ->
                 Spacer(Modifier.height(8.dp))
                 Text(
@@ -792,13 +796,13 @@ private fun buildTiles(s: UiState, spot: Spot, hours: List<Hour>, sel: Int, h: H
             mini = { m -> WaveGlyph(if (spot.sheltered) wave * 0.3 else wave, m) },
             full = {
                 val (past, mk) = slice(7 * 24, 48)
-                Text(t("Sea temperature, last week and next two days", "Sjávarhiti, síðustu viku og næstu tvo daga"), style = T.small)
+                Text(t("Sea temperature, the week before and two days after", "Sjávarhiti, vikuna á undan og tvo daga á eftir"), style = T.small)
                 Sparkline(past.map { it.sst }, Modifier.fillMaxWidth().height(56.dp), C.sea, marker = mk, floor = 1.5)
                 Spacer(Modifier.height(8.dp))
                 val (wv, wk) = slice(0, 24)
-                Text(t("Waves, next 24 hours", "Öldur, næsta sólarhring"), style = T.small)
+                Text(t("Waves, 24 hours from ", "Öldur, sólarhringur frá ") + whenLabel(s, sel, h.t), style = T.small)
                 Sparkline(wv.map { it.wave }, Modifier.fillMaxWidth().height(48.dp), C.foam, marker = wk, floor = 1.0, zeroBased = true)
-                HourAxis(wv.map { it.t }, Modifier.fillMaxWidth().height(14.dp))
+                HourAxis(wv.map { it.t }, Modifier.fillMaxWidth().height(14.dp), points = true)
                 Spacer(Modifier.height(8.dp))
                 val happy = Fish.sea.filter { it.temperatureFit(h.sst) >= 1.0 }
                 Text(
@@ -811,30 +815,34 @@ private fun buildTiles(s: UiState, spot: Spot, hours: List<Hour>, sel: Int, h: H
     }
 
     // Pressure.
-    val past3 = hours.getOrNull(sel - 3)?.pressure ?: Double.NaN
-    val d3 = if (h.pressure.isNaN() || past3.isNaN()) Double.NaN else h.pressure - past3
+    val d3 = Model.pressureChange(hours, sel)
+    val trend = Model.pressureTrend(hours, sel)
     out += Tile(
         "pressure", t("Pressure", "Loftþrýstingur"),
         "${fmt(h.pressure)} hPa",
-        when {
-            d3.isNaN() -> "–"
-            d3 < -0.8 -> "↓ ${fmt(-d3, 1)} " + t("in 3 h", "á 3 klst.")
-            d3 > 1.0 -> "↑ ${fmt(d3, 1)} " + t("in 3 h", "á 3 klst.")
-            else -> t("Steady", "Stöðugur")
-        },
-        t("Air pressure and how it changed over 3 hours. A slow fall often gets fish feeding; a fast fall means a storm is coming.", "Loftþrýstingur og breytingin síðustu 3 tíma. Hægt fall fær fiskinn oft til að taka; hratt fall boðar óveður."),
+        if (d3.isNaN()) "–" else trend.label + " · " + (if (d3 >= 0) "+" else "−") + fmt(kotlin.math.abs(d3), 1) + t(" in 3 h", " á 3 klst."),
+        t(
+            "Air pressure at sea level and its change over the last 3 hours. Steady is under 0.8 hPa; a fall of 0.8–3.5 often gets fish feeding; faster falls mean weather is coming; a climb after a front usually means a slow bite.",
+            "Loftþrýstingur við sjávarmál og breytingin síðustu 3 tíma. Stöðugur er undir 0,8 hPa; fall upp á 0,8–3,5 fær fiskinn oft til að taka; hraðara fall boðar veður; hækkun eftir skil þýðir oftast dræma töku.",
+        ),
         mini = { m ->
             val (sl, mk) = slice(12, 12)
             Sparkline(sl.map { it.pressure }, m, C.mist, marker = mk, floor = 4.0)
         },
         full = {
             val (sl, mk) = slice(24, 24)
-            Text(t("Yesterday to tomorrow", "Frá í gær fram á morgun"), style = T.small)
+            Text(t("24 hours either side", "Sólarhring fyrir og eftir"), style = T.small)
             Sparkline(sl.map { it.pressure }, Modifier.fillMaxWidth().height(72.dp), C.foam, marker = mk, floor = 6.0)
-            HourAxis(sl.map { it.t }, Modifier.fillMaxWidth().height(14.dp))
+            HourAxis(sl.map { it.t }, Modifier.fillMaxWidth().height(14.dp), points = true)
             Spacer(Modifier.height(6.dp))
+            val lo = sl.mapNotNull { it.pressure.takeUnless(Double::isNaN) }.minOrNull()
+            val hi = sl.mapNotNull { it.pressure.takeUnless(Double::isNaN) }.maxOrNull()
+            if (lo != null && hi != null) Text(t("Range ", "Bil ") + "${fmt(lo)}–${fmt(hi)} hPa", style = T.small.copy(color = C.foam))
             Text(
-                t("Falling slowly: often good. Falling fast: a storm is near. Rising after a front: often a slow bite.", "Hægt fall: oft gott. Hratt fall: óveður nálgast. Hækkun eftir skil: oft dræm taka."),
+                t(
+                    "3-hour change: steady under 0.8 hPa · falling 0.8–3.5 (often good) · falling fast 3.5–6 · over 6 a storm is close · rising usually means a slower bite.",
+                    "Breyting á 3 tímum: stöðugur undir 0,8 hPa · fellur 0,8–3,5 (oft gott) · fellur hratt 3,5–6 · yfir 6 er óveður nálægt · hækkun þýðir oftast dræmari töku.",
+                ),
                 style = T.small,
             )
         },
@@ -895,7 +903,7 @@ private fun buildTiles(s: UiState, spot: Spot, hours: List<Hour>, sel: Int, h: H
         },
         full = {
             val (sl, mk) = slice(0, 24)
-            Text(t("Temperature, next 24 hours", "Hiti, næsta sólarhring"), style = T.small)
+            Text(t("Temperature, 24 hours from ", "Hiti, sólarhringur frá ") + whenLabel(s, sel, h.t), style = T.small)
             Sparkline(sl.map { it.airTemp }, Modifier.fillMaxWidth().height(56.dp), C.ok, marker = mk, floor = 3.0)
             Spacer(Modifier.height(6.dp))
             Text(t("Rain (mm per hour)", "Úrkoma (mm á klst.)"), style = T.small)
@@ -930,7 +938,7 @@ private fun FishRow(s: UiState, spot: Spot) {
     val nowT = s.scores.getOrNull(s.nowIndex)?.t ?: return
     val next = s.scores.filter { it.t in nowT..(nowT + 24 * 3_600_000L) }
     if (next.isEmpty()) return
-    val water = s.forecast?.hours?.getOrNull(s.nowIndex)?.sst ?: Double.NaN
+    val water = s.hours.getOrNull(s.nowIndex)?.sst ?: Double.NaN
     val rows = Fish.forWater(spot.water).map { sp ->
         val best = next.maxByOrNull { hs -> hs.perSpecies.firstOrNull { it.first.id == sp.id }?.second ?: 0 }
         val v = best?.perSpecies?.firstOrNull { it.first.id == sp.id }?.second ?: 0

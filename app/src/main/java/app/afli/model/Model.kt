@@ -75,6 +75,17 @@ data class HourScore(
 
 data class Window(val start: Long, val end: Long, val peak: Int)
 
+enum class PressureTrend(private val tx: Tx) {
+    UNKNOWN(Tx("–", "–")),
+    STEADY(Tx("Steady", "Stöðugur")),
+    FALLING(Tx("Falling", "Fellur")),
+    FALLING_FAST(Tx("Falling fast", "Fellur hratt")),
+    STORM(Tx("Plunging", "Hrapar")),
+    RISING(Tx("Rising", "Hækkar")),
+    RISING_FAST(Tx("Rising fast", "Hækkar hratt"));
+    val label: String get() = tx.toString()
+}
+
 /** A high or low tide at time [t] with sea level [level] (m, relative to mean sea level). */
 data class TideTurn(val t: Long, val high: Boolean, val level: Double)
 
@@ -155,15 +166,16 @@ object Model {
             }
         }
 
-        // Pressure: a gentle fall before weather is good; fast changes are not.
-        val past = hours.getOrNull(i - 3)?.pressure ?: Double.NaN
-        val d3 = if (h.pressure.isNaN() || past.isNaN()) Double.NaN else h.pressure - past
-        val pressure = when {
-            d3.isNaN() -> 0.95
-            d3 < -4.0 -> 0.85.also { reasons += Reason(Tx("Storm coming", "Óveður í aðsigi"), Tx("Pressure is dropping fast. Fish often feed early, then shut down.", "Loftþrýstingur fellur hratt. Fiskurinn tekur oft fyrst en hættir svo."), false, it) }
-            d3 < -0.8 -> 1.0.also { reasons += Reason(Tx("Pressure falling", "Þrýstingur fellur"), Tx("A slow drop in air pressure often gets fish feeding.", "Hægt fallandi loftþrýstingur fær fiskinn oft til að taka."), true, 1.06) }
-            d3 <= 1.0 -> 0.94
-            else -> 0.84.also { reasons += Reason(Tx("Pressure rising", "Þrýstingur hækkar"), Tx("Rising pressure after a front often means a slow bite.", "Hækkandi þrýstingur eftir skil þýðir oft dræma töku."), false, it) }
+        // Pressure: the change over 3 hours, in the Met Office/WMO tendency bands. A slow fall
+        // before weather is good; a steep fall or any climb after a front is worse.
+        val pressure = when (pressureTrend(hours, i)) {
+            PressureTrend.UNKNOWN -> 0.95
+            PressureTrend.STEADY -> 0.95
+            PressureTrend.FALLING -> 1.0.also { reasons += Reason(Tx("Pressure falling", "Þrýstingur fellur"), Tx("A slow drop in air pressure often gets fish feeding.", "Hægt fallandi loftþrýstingur fær fiskinn oft til að taka."), true, 1.06) }
+            PressureTrend.FALLING_FAST -> 0.93.also { reasons += Reason(Tx("Falling fast", "Fellur hratt"), Tx("Pressure is dropping quickly. Fish may feed hard for a while, then go quiet as the weather arrives.", "Loftþrýstingur fellur hratt. Fiskurinn getur tekið vel um stund en róast svo þegar veðrið skellur á."), false, it) }
+            PressureTrend.STORM -> 0.8.also { reasons += Reason(Tx("Storm coming", "Óveður í aðsigi"), Tx("Pressure is plunging, so a storm is close. Fishing usually shuts down.", "Loftþrýstingur hrapar og óveður er nálægt. Taka dettur yfirleitt niður."), false, it) }
+            PressureTrend.RISING -> 0.9.also { reasons += Reason(Tx("Pressure rising", "Þrýstingur hækkar"), Tx("Rising pressure after a front often means a slower bite.", "Hækkandi þrýstingur eftir skil þýðir oft dræmari töku."), false, it) }
+            PressureTrend.RISING_FAST -> 0.82.also { reasons += Reason(Tx("Rising fast", "Hækkar hratt"), Tx("Pressure is climbing fast behind a front. Bites are usually slow.", "Þrýstingur hækkar hratt á eftir skilum. Taka er yfirleitt dræm."), false, it) }
         }
 
         // Wind: some chop helps, too much makes it hard to fish.
@@ -248,6 +260,30 @@ object Model {
             tideFlow = if (isLake) null else tideFlow,
             sunElevation = sun,
         )
+    }
+
+    /** Pressure change over the 3 hours up to hour [i] (hPa), NaN if unknown. */
+    fun pressureChange(hours: List<Hour>, i: Int): Double {
+        val now = hours.getOrNull(i)?.pressure ?: Double.NaN
+        val past = hours.getOrNull(i - 3)?.pressure ?: Double.NaN
+        return if (now.isNaN() || past.isNaN()) Double.NaN else now - past
+    }
+
+    /**
+     * The 3-hour tendency in bands close to the ones forecasters use: under 0.8 hPa steady,
+     * up to 3.5 falling/rising, up to 6 fast, beyond 6 a plunge (storm).
+     */
+    fun pressureTrend(hours: List<Hour>, i: Int): PressureTrend {
+        val d = pressureChange(hours, i)
+        return when {
+            d.isNaN() -> PressureTrend.UNKNOWN
+            d <= -6.0 -> PressureTrend.STORM
+            d < -3.5 -> PressureTrend.FALLING_FAST
+            d <= -0.8 -> PressureTrend.FALLING
+            d < 0.8 -> PressureTrend.STEADY
+            d <= 3.5 -> PressureTrend.RISING
+            else -> PressureTrend.RISING_FAST
+        }
     }
 
     /** Safe / Careful / Stay home from gusts, waves and cold wind. Never mixed into the bite score. */

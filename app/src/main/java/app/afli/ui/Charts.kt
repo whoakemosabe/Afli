@@ -212,16 +212,17 @@ fun WindDial(fromDeg: Double, facing: Double?, modifier: Modifier = Modifier) {
 
 /** Hour labels under the forecast bars: every 6 hours (00, 06, 12, 18), centred on their bar. */
 @Composable
-fun HourAxis(times: List<Long>, modifier: Modifier = Modifier) {
+fun HourAxis(times: List<Long>, modifier: Modifier = Modifier, points: Boolean = false) {
     val measurer = rememberTextMeasurer()
     Canvas(modifier) {
         if (times.isEmpty()) return@Canvas
-        val w = size.width / times.size
+        // Bars sit in the middle of their slot; a line chart's points run edge to edge.
+        fun x(i: Int) = if (points) i * size.width / (times.size - 1).coerceAtLeast(1) else (i + 0.5f) * size.width / times.size
         val cal = Calendar.getInstance()
-        times.forEachIndexed { i, t ->
-            cal.timeInMillis = t
+        times.forEachIndexed { i, ms ->
+            cal.timeInMillis = ms
             val h = cal.get(Calendar.HOUR_OF_DAY)
-            if (h % 6 == 0) axisLabel(measurer, "%02d".format(Locale.US, h), i * w + w / 2, 0f, C.faint)
+            if (h % 6 == 0) axisLabel(measurer, if (h == 0) shortDay(ms) else "%02d".format(Locale.US, h), x(i), 0f, if (h == 0) C.mist else C.faint)
         }
     }
 }

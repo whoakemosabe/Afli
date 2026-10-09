@@ -21,13 +21,13 @@ Each hour gets plain multipliers for:
 
 - **Tide**: how fast the sea level is changing compared with the fastest flow that day (moving water is feeding water), a little more around spring tides (new and full moon).
 - **Light**: the sun's height. Dawn and dusk (−6° to 8°) score best; bright sun on clear water a bit lower; darkness lower except for cod, which come shallower at night.
-- **Pressure**: the change over the last 3 hours. A slow fall is best; a fast fall or a rise is worse.
+- **Pressure**: the change over the last 3 hours, in bands close to the ones forecasters use. A fall of 0.8 to 3.5 hPa is best; steady (under 0.8) is neutral; a faster fall, a plunge of 6 hPa or more (a storm), or a rise scores lower.
 - **Wind**: some wind helps, over 8 m/s is hard work, over 12 m/s is poor. With the spot's water direction set, onshore wind gets a small boost.
 - **Water clarity**: lots of rain in the last two days, or big waves at an open coast, lower it.
 
 Each fish then gets a presence score from the sea temperature (its comfortable range, from Wikipedia), how often it's within reach of the shore, and, for lake fish, the May to September season. The bite score is the best fish's presence times the multipliers. Lake spots score zero at night (no night fishing under the Veiðikortið rules).
 
-For the next 12 hours, the forecast's wind, gusts and pressure are nudged toward the nearest Veðurstofa station's live reading, fading out over the 12 hours.
+For the next 12 hours, the forecast's wind and gusts are nudged toward the nearest Veðurstofa station's live reading, fading out over the 12 hours. Pressure gets the same offset for the past and next 12 hours and fades over the day after, so the correction never shows up as a pressure change. The tiles show these corrected numbers.
 
 Safety is worked out on its own and never mixed into the score: gusts of 22 m/s or more, or waves of 3.5 m or more at a sea spot, mean Stay home; gusts from 15 m/s, waves from 2 m, or cold and windy mean Careful. Harbours count about a third of the offshore wave height.
 

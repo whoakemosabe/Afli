@@ -5,6 +5,7 @@ import app.afli.Tx
 import android.location.Location
 import app.afli.model.Astro
 import app.afli.model.Fish
+import app.afli.model.Hour
 import app.afli.model.HourScore
 import app.afli.model.Model
 import app.afli.model.Spot
@@ -30,6 +31,8 @@ data class UiState(
     val spot: Spot? = null,
     val atSpot: Boolean = false,
     val forecast: Forecast? = null,
+    /** The forecast hours as scored: nudged toward the live station near now. Show these. */
+    val hours: List<Hour> = emptyList(),
     val live: Live? = null,
     val scores: List<HourScore> = emptyList(),
     val nowIndex: Int = 0,
@@ -98,8 +101,8 @@ object Repo {
             state.update {
                 it.copy(
                     loading = false, forecast = fc, live = live,
-                    scores = scored.first, nowIndex = scored.second,
-                    window = Model.nextWindow(scored.first, System.currentTimeMillis()),
+                    scores = scored.scores, nowIndex = scored.nowIndex, hours = scored.hours,
+                    window = Model.nextWindow(scored.scores, System.currentTimeMillis()),
                 )
             }
         } catch (e: kotlinx.coroutines.CancellationException) {
@@ -109,12 +112,15 @@ object Repo {
         }
     }
 
+    private class Scored(val scores: List<HourScore>, val nowIndex: Int, val hours: List<Hour>)
+
     /**
-     * Scores every hour. Before scoring, the forecast's current wind, gusts and pressure are
-     * nudged toward the live station reading and the nudge fades out over 12 hours (the
-     * live bias correction).
+     * Scores every hour. Before scoring, the forecast's current wind and gusts are nudged toward
+     * the live station reading, fading out over 12 hours. Pressure gets the same offset for the
+     * past and next 12 hours, fading only after that, so the correction itself never shows up
+     * as a pressure trend (the score reads the 3-hour change).
      */
-    private fun scoreFor(fc: Forecast, spot: Spot, live: Live?): Pair<List<HourScore>, Int> {
+    private fun scoreFor(fc: Forecast, spot: Spot, live: Live?): Scored {
         val now = System.currentTimeMillis()
         val nowIndex = fc.hours.indexOfLast { it.t <= now }.coerceAtLeast(0)
         var hours = fc.hours
@@ -125,21 +131,24 @@ object Repo {
             val dP = if (live.pressure.isNaN() || h0.pressure.isNaN()) 0.0 else live.pressure - h0.pressure
             hours = hours.mapIndexed { i, h ->
                 val k = i - nowIndex
-                if (k < 0 || k > 12) h else {
-                    val w = 1.0 - k / 12.0
-                    h.copy(
-                        wind = (h.wind + dWind * w).coerceAtLeast(0.0),
-                        gust = (h.gust + dGust * w).coerceAtLeast(0.0),
-                        pressure = h.pressure + dP * w,
-                    )
+                val wWind = if (k < 0 || k > 12) 0.0 else 1.0 - k / 12.0
+                val wP = when {
+                    k <= 12 -> 1.0
+                    k >= 36 -> 0.0
+                    else -> 1.0 - (k - 12) / 24.0
                 }
+                h.copy(
+                    wind = if (wWind > 0) (h.wind + dWind * wWind).coerceAtLeast(0.0) else h.wind,
+                    gust = if (wWind > 0) (h.gust + dGust * wWind).coerceAtLeast(0.0) else h.gust,
+                    pressure = h.pressure + dP * wP,
+                )
             }
         }
         val lakeTemp = if (spot.water == Water.LAKE) {
             // A lake's surface follows the past week's air temperature, a little warmer in summer.
             hours.filter { it.t in (now - 7 * 86_400_000L)..now && !it.airTemp.isNaN() }.map { it.airTemp }.average().let { if (it.isNaN()) it else it + 1.0 }
         } else Double.NaN
-        return Model.scoreAll(hours, spot, lakeTemp) to nowIndex
+        return Scored(Model.scoreAll(hours, spot, lakeTemp), nowIndex, hours)
     }
 
     // ---- spots ----
@@ -152,7 +161,7 @@ object Repo {
         scope.launch {
             val fc = state.value.forecast ?: return@launch
             val scored = withContext(Dispatchers.Default) { scoreFor(fc, s, state.value.live) }
-            state.update { it.copy(scores = scored.first, nowIndex = scored.second, window = Model.nextWindow(scored.first, System.currentTimeMillis())) }
+            state.update { it.copy(scores = scored.scores, nowIndex = scored.nowIndex, hours = scored.hours, window = Model.nextWindow(scored.scores, System.currentTimeMillis())) }
         }
     }
 
@@ -169,8 +178,8 @@ object Repo {
             db.saveSpot(target)
         }
         val now = st.now
-        val h = st.forecast?.hours?.getOrNull(st.nowIndex)
-        val h3 = st.forecast?.hours?.getOrNull(st.nowIndex - 3)
+        val h = st.hours.getOrNull(st.nowIndex)
+        val h3 = st.hours.getOrNull(st.nowIndex - 3)
         val trip = Trip(
             id = UUID.randomUUID().toString(),
             spotId = target.id,

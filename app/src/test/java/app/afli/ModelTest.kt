@@ -146,4 +146,14 @@ class ModelTest {
             L.lang = Lang.EN
         }
     }
+
+    @Test fun pressureBands() {
+        fun at(d: Double) = Model.pressureTrend(listOf(Hour(0, pressure = 1000.0), Hour(1, pressure = 1000.0), Hour(2, pressure = 1000.0), Hour(3, pressure = 1000.0 + d)), 3)
+        assertEquals(app.afli.model.PressureTrend.STEADY, at(0.5))
+        assertEquals(app.afli.model.PressureTrend.FALLING, at(-2.0))
+        assertEquals(app.afli.model.PressureTrend.FALLING_FAST, at(-4.0))
+        assertEquals(app.afli.model.PressureTrend.STORM, at(-7.0))
+        assertEquals(app.afli.model.PressureTrend.RISING, at(2.0))
+        assertEquals(app.afli.model.PressureTrend.RISING_FAST, at(4.0))
+    }
 }
