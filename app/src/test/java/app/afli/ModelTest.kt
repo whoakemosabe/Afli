@@ -112,9 +112,13 @@ class ModelTest {
 
     @Test fun sunriseAndSunsetInKeflavik() {
         val utc = java.time.ZoneOffset.UTC
+        // Late May: sunrise about 04:00, sunset about 23:00 (UTC is Iceland's time).
+        val may = Astro.sunDay(ms(2026, 5, 21, 12), 64.0035, -22.556, utc)
+        val mayLen = (may.set!! - may.rise!!) / 3_600_000.0
+        assertTrue("May day $mayLen h", mayLen in 18.0..20.5)
+        // Midsummer: the sun only dips just below the horizon, setting just after midnight.
         val june = Astro.sunDay(ms(2026, 6, 21, 12), 64.0035, -22.556, utc)
-        assertTrue(june.rise != null && june.set != null)
-        assertTrue((june.set!! - june.rise!!) / 3_600_000.0 > 20.0)
+        assertTrue(!june.allDay && june.rise != null)
         val dec = Astro.sunDay(ms(2026, 12, 21, 12), 64.0035, -22.556, utc)
         val len = (dec.set!! - dec.rise!!) / 3_600_000.0
         assertTrue("December day $len h", len in 3.5..4.7)
