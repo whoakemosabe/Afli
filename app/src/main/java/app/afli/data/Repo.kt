@@ -46,17 +46,17 @@ data class UiState(
 object Repo {
     val state = MutableStateFlow(UiState())
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
-    private lateinit var store: Store
+    private lateinit var db: Store
     private var job: Job? = null
 
     fun init(context: Context) {
-        if (::store.isInitialized) return
-        store = Store(context.applicationContext)
-        val trips = store.trips()
-        state.update { it.copy(spots = store.spots(), trips = trips, activeTrip = trips.firstOrNull { t -> t.end == null }) }
+        if (::db.isInitialized) return
+        db = Store(context.applicationContext)
+        val trips = db.trips()
+        state.update { it.copy(spots = db.spots(), trips = trips, activeTrip = trips.firstOrNull { t -> t.end == null }) }
     }
 
-    fun store(): Store = store
+    fun store(): Store = db
 
     /** Find where he is, then load and score that water. */
     fun refresh(context: Context, useGps: Boolean = true) {
@@ -65,9 +65,9 @@ object Repo {
             state.update { it.copy(loading = true, error = null) }
             val app = context.applicationContext
             val fix = if (useGps && Locator.hasPermission(app)) runCatching { Locator.current(app) }.getOrNull() else state.value.gps
-            val spots = store.spots()
-            val chosen = store.selectedSpot?.let { id -> spots.firstOrNull { it.id == id } }
-            val near = fix?.let { store.spotNear(it.latitude, it.longitude) }
+            val spots = db.spots()
+            val chosen = db.selectedSpot?.let { id -> spots.firstOrNull { it.id == id } }
+            val near = fix?.let { db.spotNear(it.latitude, it.longitude) }
             val spot = when {
                 near != null -> near
                 chosen != null -> chosen
@@ -81,7 +81,7 @@ object Repo {
 
     /** Show a particular spot (from the spot chips). */
     fun choose(context: Context, spot: Spot) {
-        store.selectedSpot = if (spot.id == "here") null else spot.id
+        db.selectedSpot = if (spot.id == "here") null else spot.id
         job?.cancel()
         job = scope.launch {
             state.update { it.copy(spot = spot, atSpot = false, loading = true, error = null) }
@@ -145,9 +145,9 @@ object Repo {
 
     fun saveSpot(context: Context, spot: Spot) {
         val s = if (spot.id == "here") spot.copy(id = "spot-" + UUID.randomUUID().toString().take(8)) else spot
-        store.saveSpot(s)
-        state.update { it.copy(spots = store.spots(), spot = s) }
-        store.selectedSpot = s.id
+        db.saveSpot(s)
+        state.update { it.copy(spots = db.spots(), spot = s) }
+        db.selectedSpot = s.id
         scope.launch {
             val fc = state.value.forecast ?: return@launch
             val scored = withContext(Dispatchers.Default) { scoreFor(fc, s, state.value.live) }
@@ -165,7 +165,7 @@ object Repo {
         // Trips build spots: a new place becomes a saved spot named by the phone.
         if (spot.id == "here") {
             target = spot.copy(id = "spot-" + UUID.randomUUID().toString().take(8), lat = gps?.latitude ?: spot.lat, lon = gps?.longitude ?: spot.lon)
-            store.saveSpot(target)
+            db.saveSpot(target)
         }
         val now = st.now
         val h = st.forecast?.hours?.getOrNull(st.nowIndex)
@@ -191,35 +191,35 @@ object Repo {
                 sunElevation = now?.sunElevation ?: Astro.sunElevation(System.currentTimeMillis(), target.lat, target.lon),
             ),
         )
-        store.saveTrip(trip)
-        state.update { it.copy(activeTrip = trip, trips = store.trips(), spots = store.spots(), spot = target) }
+        db.saveTrip(trip)
+        state.update { it.copy(activeTrip = trip, trips = db.trips(), spots = db.spots(), spot = target) }
     }
 
     fun addCatch(speciesId: String) {
         val t = state.value.activeTrip ?: return
         if (Fish.byId(speciesId) == null) return
         val updated = t.copy(catches = t.catches + Catch(speciesId, System.currentTimeMillis()))
-        store.saveTrip(updated)
-        state.update { it.copy(activeTrip = updated, trips = store.trips()) }
+        db.saveTrip(updated)
+        state.update { it.copy(activeTrip = updated, trips = db.trips()) }
     }
 
     fun undoCatch() {
         val t = state.value.activeTrip ?: return
         if (t.catches.isEmpty()) return
         val updated = t.copy(catches = t.catches.dropLast(1))
-        store.saveTrip(updated)
-        state.update { it.copy(activeTrip = updated, trips = store.trips()) }
+        db.saveTrip(updated)
+        state.update { it.copy(activeTrip = updated, trips = db.trips()) }
     }
 
     fun endTrip() {
         val t = state.value.activeTrip ?: return
         val done = t.copy(end = System.currentTimeMillis())
-        store.saveTrip(done)
-        state.update { it.copy(activeTrip = null, trips = store.trips()) }
+        db.saveTrip(done)
+        state.update { it.copy(activeTrip = null, trips = db.trips()) }
     }
 
     fun deleteTrip(id: String) {
-        store.deleteTrip(id)
-        state.update { it.copy(trips = store.trips(), activeTrip = if (it.activeTrip?.id == id) null else it.activeTrip) }
+        db.deleteTrip(id)
+        state.update { it.copy(trips = db.trips(), activeTrip = if (it.activeTrip?.id == id) null else it.activeTrip) }
     }
 }
