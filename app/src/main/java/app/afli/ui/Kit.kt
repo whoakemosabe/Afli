@@ -143,7 +143,10 @@ fun GlassCard(
     // The glow fades in and out rather than snapping, keeping its last colour while it fades.
     val lastGlow = remember { mutableStateOf(glow ?: C.brass) }
     if (glow != null) lastGlow.value = glow
-    val g by animateFloatAsState(if (glow != null) 1f else 0f, tween(420), label = "glow")
+    // Starts at zero, so a card that appears already glowing (an opened panel, a tip) fades in too.
+    val glowAnim = remember { Animatable(0f) }
+    LaunchedEffect(glow != null) { glowAnim.animateTo(if (glow != null) 1f else 0f, tween(if (glow != null) 520 else 360)) }
+    val g = glowAnim.value
     val gc = lastGlow.value
     val shownGlow = if (g > 0.01f) gc.copy(alpha = g) else null
     var m = modifier
