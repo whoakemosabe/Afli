@@ -69,7 +69,7 @@ fun GuideScreen(top: Dp, scroll: ScrollState) {
                 Spacer(Modifier.height(4.dp))
                 Text(t("Try: ", "Prófaðu: ") + f.bait, style = T.small.copy(color = C.foam))
                 Text(
-                    t("Happiest in ", "Kýs ") + "${fmt(f.optLo)}–${fmt(f.optHi)} °C" + t(" water", "") + if (f.reach < 0.5) t(" · rare from shore", " · sjaldgæfur frá landi") else "",
+                    t("Happiest in ", "Kýs ") + "${fmt(f.optLo)}–${fmt(f.optHi)} °C" + t(" water", "") + if (f.reach < 0.5) t(" · rare from shore", " · veiðist sjaldan frá landi") else "",
                     style = T.small.copy(color = C.faint),
                 )
             }
@@ -82,7 +82,7 @@ private val guide: List<Pair<String, String>>
     get() = listOf(
         t("The bite score", "Tökulíkurnar") to t(
             "A number from 0 to 100 for how likely fish are to bite at this water. Over 60 is great, 35 to 60 is OK, under 35 is slow. It mixes moving tide, light, air pressure, wind and water temperature, and whether each fish likes the water today.",
-            "Tala frá 0 upp í 100 um hversu líklegt er að fiskur taki við þetta vatn. Yfir 60 er frábært, 35 til 60 ágætt og undir 35 rólegt. Hún blandar saman straumi, birtu, loftþrýstingi, vindi og hita vatnsins, og hvort hverjum fiski líki vatnið í dag.",
+            "Tala frá 0 upp í 100 um hversu líklegt er að fiskur taki á þessum stað. Yfir 60 er frábært, 35 til 60 ágætt og undir 35 rólegt. Hún blandar saman straumi, birtu, loftþrýstingi, vindi og sjávarhita, og hvort hverjum fiski líki vatnið í dag.",
         ),
         t("Swipe through time", "Flettu í gegnum tímann") to t(
             "Under the score is a strip of the next 48 hours. Drag it and the whole Now screen changes to that hour: score, fish, tide, wind. Tap Best to jump to the best stretch, or Back to now.",
@@ -106,19 +106,19 @@ private val guide: List<Pair<String, String>>
         ),
         t("Where you are", "Hvar þú ert") to t(
             "Afli uses GPS to find your water. Spots you fish at are saved automatically when you start a trip there. Keflavík and Njarðvík harbours, Kleifarvatn and Seltjörn are built in.",
-            "Afli notar GPS til að finna vatnið þitt. Staðir vistast sjálfkrafa þegar þú byrjar ferð þar. Keflavíkurhöfn, Njarðvíkurhöfn, Kleifarvatn og Seltjörn eru innbyggð.",
+            "Afli notar GPS til að finna veiðistaðinn þinn. Staðir vistast sjálfkrafa þegar þú byrjar ferð þar. Keflavíkurhöfn, Njarðvíkurhöfn, Kleifarvatn og Seltjörn eru innbyggð.",
         ),
         t("Fix spot", "Stilla stað") to t(
             "Point your phone at the water and tap Set, so Afli knows when the wind is onshore or offshore. Say if it's a harbour, open coast or a lake.",
-            "Beindu símanum að vatninu og ýttu á Stilla svo Afli viti hvenær vindur blæs að landi eða frá. Segðu hvort þetta sé höfn, opin strönd eða vatn.",
+            "Beindu símanum þangað sem þú kastar og ýttu á Stilla svo Afli viti hvenær vindur blæs að landi eða frá. Segðu hvort þetta sé höfn, opin strönd eða vatn.",
         ),
         t("Tides", "Sjávarföll") to t(
             "The tide curve comes from a sea model and is only approximate close to the shore. Times run along the bottom, with the time of each high and low. Fish usually feed best while the water is moving, not at the turn.",
-            "Sjávarfallaferillinn kemur úr líkani og er bara nálgun við ströndina. Tíminn er neðst og tími hvers flóðs og fjöru er merktur. Fiskurinn tekur yfirleitt best þegar sjórinn er á hreyfingu, ekki á liggjandanum.",
+            "Sjávarfallaferillinn kemur úr líkani og er ónákvæmari nálægt landi. Tíminn er neðst og tími hvers flóðs og fjöru er merktur. Fiskurinn tekur yfirleitt best þegar sjórinn er á hreyfingu, ekki á liggjandanum.",
         ),
         t("Log every trip", "Skráðu hverja ferð") to t(
             "Tap Start fishing at the water, tap a fish each time you catch one, and End trip when you leave. Log the empty trips too: they teach Afli when fish don't bite.",
-            "Ýttu á Byrja að veiða við vatnið, ýttu á fisk í hvert sinn sem þú veiðir og Ljúka ferð þegar þú ferð. Skráðu líka ferðir þar sem ekkert veiddist: þær kenna Afla hvenær fiskurinn tekur ekki.",
+            "Ýttu á Byrja að veiða á staðnum, ýttu á fisk í hvert sinn sem þú veiðir og Ljúka ferð þegar þú ferð. Skráðu líka ferðir þar sem ekkert veiddist: þær kenna Afla hvenær fiskurinn tekur ekki.",
         ),
         t("Forecast", "Spá") to t(
             "Seven days of hour bars coloured by bite score. Red-tinted bars are Stay home. Tap a bar for that hour, then See in Now for the full picture. Days far ahead are less certain.",
@@ -126,7 +126,7 @@ private val guide: List<Pair<String, String>>
         ),
         t("Lakes", "Vötn") to t(
             "Lake fishing in Iceland needs a permit (Veiðikortið or the local club) and the landowner's OK. No fishing at night, and the season is about May to September. Some lakes are fly only.",
-            "Til að veiða í vötnum þarf veiðileyfi (Veiðikortið eða veiðifélag staðarins) og leyfi landeiganda. Engin veiði á nóttunni og tímabilið er um maí til september. Sum vötn leyfa bara flugu.",
+            "Til að veiða í vötnum þarf veiðileyfi (Veiðikortið eða veiðifélag staðarins) og leyfi landeiganda. Engin veiði á nóttunni og tímabilið er um maí til september. Í sumum vötnum má bara veiða á flugu.",
         ),
         t("Language", "Tungumál") to t(
             "Settings → Language switches Afli between English and Icelandic. Fish names always show in both.",
@@ -143,9 +143,9 @@ private val guide: List<Pair<String, String>>
 fun Onboarding(onDone: () -> Unit) {
     val view = LocalView.current
     val pages = listOf(
-        Triple(t("This is your bite score", "Þetta eru tökulíkurnar"), t("Big number means a good time to fish. Afli works it out from the tide, light, wind, pressure and water temperature.", "Há tala þýðir góðan tíma til að veiða. Afli reiknar hana út frá sjávarföllum, birtu, vindi, loftþrýstingi og hita vatnsins."), C.good),
-        Triple(t("This says if it's safe", "Þetta segir hvort er öruggt"), t("Safe, Careful or Stay home, from wind gusts and waves. Stay home means stay home.", "Öruggt, Varúð eða Vertu heima, út frá hviðum og öldum. Vertu heima þýðir vertu heima."), C.ok),
-        Triple(t("Log every trip", "Skráðu hverja ferð"), t("Tap Start fishing at the water. Log the empty trips too; that's how Afli learns what works at your spots.", "Ýttu á Byrja að veiða við vatnið. Skráðu líka ferðir þar sem ekkert veiddist; þannig lærir Afli hvað virkar á þínum stöðum."), C.brass),
+        Triple(t("This is your bite score", "Þetta eru tökulíkurnar"), t("Big number means a good time to fish. Afli works it out from the tide, light, wind, pressure and water temperature.", "Há tala þýðir góðan tíma til að veiða. Afli reiknar hana út frá sjávarföllum, birtu, vindi, loftþrýstingi og sjávarhita."), C.good),
+        Triple(t("This says if it's safe", "Hér sérðu hvort óhætt er að veiða"), t("Safe, Careful or Stay home, from wind gusts and waves. Stay home means stay home.", "Öruggt, Varúð eða Vertu heima, út frá hviðum og öldum. Vertu heima þýðir vertu heima."), C.ok),
+        Triple(t("Log every trip", "Skráðu hverja ferð"), t("Tap Start fishing at the water. Log the empty trips too; that's how Afli learns what works at your spots.", "Ýttu á Byrja að veiða á staðnum. Skráðu líka ferðir þar sem ekkert veiddist; þannig lærir Afli hvað virkar á þínum stöðum."), C.brass),
     )
     val pager = rememberPagerState { pages.size + 1 }
     val scope = rememberCoroutineScope()
@@ -186,9 +186,9 @@ fun Onboarding(onDone: () -> Unit) {
                     }
                 } else {
                     GlassCard(Modifier.fillMaxWidth()) {
-                        Text(t("Where's your water?", "Hvar er vatnið þitt?"), style = T.title)
+                        Text(t("Where's your water?", "Hvar veiðirðu?"), style = T.title)
                         Spacer(Modifier.height(8.dp))
-                        Text(t("Afli uses your location to know which water you're at. It only checks while the app is open.", "Afli notar staðsetninguna til að vita við hvaða vatn þú ert. Hann athugar bara á meðan appið er opið."), style = T.body)
+                        Text(t("Afli uses your location to know which water you're at. It only checks while the app is open.", "Afli notar staðsetninguna til að vita á hvaða veiðistað þú ert. Hann athugar bara á meðan appið er opið."), style = T.body)
                         Spacer(Modifier.height(16.dp))
                         GlassButton(t("Allow location", "Leyfa staðsetningu"), accent = C.brass, onClick = {
                             Haptics.confirm(view)

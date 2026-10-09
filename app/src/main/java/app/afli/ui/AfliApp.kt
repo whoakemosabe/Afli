@@ -266,7 +266,7 @@ private val tabExplain: List<String>
         t("Now: the bite score, safety and conditions where you are.", "Núna: tökulíkurnar, öryggið og aðstæður þar sem þú ert."),
         t("Forecast: the week ahead, hour by hour.", "Spá: vikan fram undan, klukkutíma fyrir klukkutíma."),
         t("Log: start a trip and tap each fish you catch.", "Dagbók: byrjaðu ferð og ýttu á hvern fisk sem þú veiðir."),
-        t("Guide: how everything works, and the fish.", "Leiðarvísir: hvernig allt virkar, og fiskarnir."),
+        t("Guide: how everything works, and the fish.", "Leiðarvísir: hvernig allt virkar og um fiskana."),
     )
 
 /**

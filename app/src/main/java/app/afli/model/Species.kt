@@ -71,7 +71,7 @@ object Fish {
             ),
             bait = Tx(
                 "Bait on the bottom: mussel, worm or a strip of mackerel. Best at dusk and after dark.",
-                "Beita við botninn: kræklingur, maðkur eða makrílbiti. Best í ljósaskiptunum og eftir myrkur.",
+                "Beita við botninn: kræklingur, maðkur eða makrílbiti. Best í ljósaskiptunum og eftir að dimmir.",
             ),
         ),
         Species(
@@ -82,7 +82,7 @@ object Fish {
             ),
             bait = Tx(
                 "A shiny spoon or mackerel feathers, cast out and wound in fast near the surface.",
-                "Glansandi spúnn eða makrílslóði, kastað út og dreginn hratt inn nálægt yfirborðinu.",
+                "Glansandi spúnn eða makrílslóði. Kastaðu út og dragðu hratt inn rétt undir yfirborðinu.",
             ),
         ),
         Species(
@@ -115,18 +115,18 @@ object Fish {
             ),
             bait = Tx(
                 "Worm or mussel on small long-shank hooks over sand. Keep the bait small.",
-                "Maðkur eða kræklingur á litlum, löngum krókum yfir sandi. Hafðu beituna litla.",
+                "Maðkur eða kræklingur á litlum leggjalöngum krókum yfir sandi. Hafðu beituna litla.",
             ),
         ),
         Species(
             "steinbitur", "Atlantic wolffish", "Steinbítur", Water.SEA, lo = -1.0, optLo = 2.0, optHi = 8.0, hi = 11.0, reach = 0.2,
             fact = Tx(
                 "Lives 20–500 m deep on rocky bottoms and rarely moves. Rare from shore.",
-                "Lifir á 20–500 m dýpi á grýttum botni og fer lítið. Veiðist sjaldan frá landi.",
+                "Lifir á 20–500 m dýpi á grýttum botni og fer lítið um. Veiðist sjaldan frá landi.",
             ),
             bait = Tx(
                 "Mussel and clam on a strong hook, cast out towards rocky ground.",
-                "Kræklingur og skel á sterkum krók, kastað út á grýttan botn.",
+                "Kræklingur og skel á sterkum krók. Kastaðu út á grýttan botn.",
             ),
         ),
     )

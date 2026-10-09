@@ -50,7 +50,7 @@ fun LogScreen(s: UiState, top: Dp, scroll: ScrollState, onStart: () -> Unit, onC
         Tips.maybeTour(
             "log",
             listOf(
-                Tips.Step("start", t("Log every trip", "Skráðu hverja ferð"), t("Tap Start fishing when you get to the water. Log empty trips too; that's how Afli learns what works.", "Ýttu á Byrja að veiða þegar þú kemur að vatninu. Skráðu líka ferðir þar sem ekkert veiddist; þannig lærir Afli hvað virkar.")),
+                Tips.Step("start", t("Log every trip", "Skráðu hverja ferð"), t("Tap Start fishing when you get to the water. Log empty trips too; that's how Afli learns what works.", "Ýttu á Byrja að veiða þegar þú mætir á staðinn. Skráðu líka ferðir þar sem ekkert veiddist; þannig lærir Afli hvað virkar.")),
             ),
         )
     }
@@ -66,10 +66,10 @@ fun LogScreen(s: UiState, top: Dp, scroll: ScrollState, onStart: () -> Unit, onC
         ) { trip ->
             if (trip == null) {
                 GlassCard(Modifier.fillMaxWidth().coachTarget("start")) {
-                    Text(t("Going fishing?", "Á leið að veiða?"), style = T.title)
+                    Text(t("Going fishing?", "Ertu að fara að veiða?"), style = T.title)
                     Spacer(Modifier.height(4.dp))
                     Text(
-                        s.spot?.let { t("Start a trip at ${it.label}. Afli saves the conditions so it can learn.", "Byrjaðu ferð við ${it.label}. Afli vistar aðstæðurnar svo hann geti lært.") }
+                        s.spot?.let { t("Start a trip at ${it.label}. Afli saves the conditions so it can learn.", "Byrjaðu ferð á þessum stað (${it.label}). Afli vistar aðstæðurnar svo hann geti lært.") }
                             ?: t("Start a trip where you're standing.", "Byrjaðu ferð þar sem þú stendur."),
                         style = T.small,
                     )
@@ -116,11 +116,11 @@ private fun ActiveTrip(trip: Trip, water: Water, onCatch: (String) -> Unit, onUn
     }
     val mins = ((now - trip.start) / 60_000).toInt()
     GlassCard(Modifier.fillMaxWidth()) {
-        Text(t("Fishing at ", "Að veiða við ") + spotLabel(trip.spotId, trip.spotName), style = T.small)
+        Text(t("Fishing at ", "Á veiðum: ") + spotLabel(trip.spotId, trip.spotName), style = T.small)
         Text(duration(mins), style = T.hero.copy(fontSize = T.title.fontSize * 2))
-        Text(t("${trip.catches.size} caught", if (trip.catches.size == 1) "1 veiddur" else "${trip.catches.size} veiddir"), style = T.title.copy(color = if (trip.catches.isEmpty()) C.mist else C.good))
+        Text(t("${trip.catches.size} caught", if (oneIs(trip.catches.size)) "${trip.catches.size} veiddur" else "${trip.catches.size} veiddir"), style = T.title.copy(color = if (trip.catches.isEmpty()) C.mist else C.good))
         Spacer(Modifier.height(14.dp))
-        SectionLabel(t("Caught one? Tap the fish", "Veiddirðu? Ýttu á fiskinn"))
+        SectionLabel(t("Caught one? Tap the fish", "Fékkstu fisk? Ýttu á hann"))
         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Fish.forWater(water).forEach { f ->
                 val n = trip.catches.count { it.species == f.id }
@@ -156,7 +156,7 @@ private fun TripCard(trip: Trip, onDelete: (String) -> Unit) {
                 Text(spotLabel(trip.spotId, trip.spotName), style = T.heading)
                 Text("${dayWord(trip.start)} ${clock(trip.start)} · ${duration(mins)}", style = T.small)
             }
-            Text(if (trip.catches.isEmpty()) t("Blank", "Ekkert") else t("${trip.catches.size} fish", if (trip.catches.size == 1) "1 fiskur" else "${trip.catches.size} fiskar"), style = T.heading.copy(color = if (trip.catches.isEmpty()) C.mist else C.good))
+            Text(if (trip.catches.isEmpty()) t("Blank", "Ekkert") else t("${trip.catches.size} fish", if (oneIs(trip.catches.size)) "${trip.catches.size} fiskur" else "${trip.catches.size} fiskar"), style = T.heading.copy(color = if (trip.catches.isEmpty()) C.mist else C.good))
         }
         if (trip.catches.isNotEmpty()) {
             Text(
@@ -172,3 +172,6 @@ private fun TripCard(trip: Trip, onDelete: (String) -> Unit) {
         }
     }
 }
+
+/** Icelandic uses the singular for numbers ending in 1, except 11 (1, 21, 31… fiskur). */
+private fun oneIs(n: Int) = n % 10 == 1 && n % 100 != 11

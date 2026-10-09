@@ -124,7 +124,7 @@ object Model {
             when {
                 tideFlow == null -> {}
                 tideFlow >= 0.6 -> reasons += Reason(Tx("Tide's moving", "Sjórinn á hreyfingu"), Tx("Fish feed more when the water is flowing in or out.", "Fiskurinn tekur betur þegar sjórinn streymir að eða frá."), true, m)
-                tideFlow <= 0.25 -> reasons += Reason(Tx("Slack tide", "Liggjandi"), Tx("The tide is turning, so the water is barely moving. Fish often go quiet.", "Sjávarföllin eru að snúast og sjórinn hreyfist varla. Fiskurinn er þá oft rólegur."), false, m)
+                tideFlow <= 0.25 -> reasons += Reason(Tx("Slack tide", "Liggjandi"), Tx("The tide is turning, so the water is barely moving. Fish often go quiet.", "Það eru fallaskipti og sjórinn hreyfist varla. Fiskurinn er þá oft rólegur."), false, m)
             }
             if (spring > 0.8) reasons += Reason(Tx("Big tides", "Stórstreymi"), Tx("Around new and full moon the tides are bigger and the water moves faster.", "Í kringum nýtt og fullt tungl eru sjávarföllin meiri og sjórinn streymir hraðar."), true, 1.04)
             m
@@ -169,7 +169,7 @@ object Model {
         // Wind: some chop helps, too much makes it hard to fish.
         val wind = when {
             h.wind.isNaN() -> 0.95
-            h.wind < 1.5 -> 0.9.also { reasons += Reason(Tx("Flat calm", "Logn"), Tx("No wind and flat water can make fish cautious.", "Logn og slétt vatn getur gert fiskinn varkáran."), false, it) }
+            h.wind < 1.5 -> 0.9.also { reasons += Reason(Tx("Flat calm", "Logn"), Tx("No wind and flat water can make fish cautious.", "Í logni og á sléttu yfirborði er fiskurinn oft var um sig."), false, it) }
             h.wind <= 8.0 -> {
                 val f = spot.facing
                 if (f != null && !h.windDir.isNaN()) {
@@ -224,7 +224,7 @@ object Model {
         if (!isLake) {
             val mack = Fish.byId("makrill")!!
             if (!waterTemp.isNaN() && waterTemp < 7.0) {
-                reasons += Reason(Tx("Too cold for mackerel", "Of kalt fyrir makríl"), Tx("Mackerel like the sea above 8 °C. It's ${num(waterTemp, 1)} °C.", "Makríllinn vill sjó yfir 8 °C. Hann er ${num(waterTemp, 1)} °C."), false, 0.97)
+                reasons += Reason(Tx("Too cold for mackerel", "Of kalt fyrir makríl"), Tx("Mackerel like the sea above 8 °C. It's ${num(waterTemp, 1)} °C.", "Makríllinn vill sjó yfir 8 °C. Sjórinn er núna ${num(waterTemp, 1)} °C."), false, 0.97)
             } else if (mack.temperatureFit(waterTemp) >= 1.0) {
                 reasons += Reason(Tx("Mackerel weather", "Makrílveður"), Tx("The sea is above 8 °C, warm enough for mackerel.", "Sjórinn er yfir 8 °C, nógu hlýr fyrir makríl."), true, 1.05)
             }
@@ -271,11 +271,11 @@ object Model {
             )
             spot.water == Water.SEA && !wave.isNaN() && wave >= 2.0 -> Safety.CAREFUL to Tx(
                 "Waves around $w m. Watch for bigger sets and keep off wet rocks.",
-                "Öldur um $w m. Passaðu stærri öldur og haltu þig frá blautum klöppum.",
+                "Öldur um $w m. Passaðu þig á stærri öldum og haltu þig frá blautum klöppum.",
             )
             !h.airTemp.isNaN() && h.airTemp < -3.0 && !h.wind.isNaN() && h.wind > 8.0 -> Safety.CAREFUL to Tx(
                 "Cold and windy. Dress warm, it feels much colder than ${num(h.airTemp)} °C.",
-                "Kalt og hvasst. Klæddu þig vel, það er mun kaldara en ${num(h.airTemp)} °C.",
+                "Kalt og hvasst. Klæddu þig vel, vindurinn gerir það mun kaldara en ${num(h.airTemp)} °C.",
             )
             else -> Safety.SAFE to Tx(
                 "Normal conditions. Still keep an eye on the waves.",

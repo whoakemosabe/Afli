@@ -160,9 +160,9 @@ fun NowScreen(
         if (s.now != null) Tips.maybeTour(
             "now2",
             listOf(
-                Tips.Step("score", t("Your bite score", "Tökulíkurnar"), t("Big number = good time to fish. It mixes tide, light, wind, pressure and water temperature.", "Há tala = góður tími til að veiða. Hún blandar saman sjávarföllum, birtu, vindi, loftþrýstingi og hita vatnsins.")),
+                Tips.Step("score", t("Your bite score", "Tökulíkurnar"), t("Big number = good time to fish. It mixes tide, light, wind, pressure and water temperature.", "Há tala = góður tími til að veiða. Hún blandar saman sjávarföllum, birtu, vindi, loftþrýstingi og sjávarhita.")),
                 Tips.Step("strip", t("Swipe through time", "Flettu í gegnum tímann"), t("Drag this strip to see any hour in the next two days. Everything on the screen changes to match.", "Dragðu þessa ræmu til að sjá hvaða klukkutíma sem er næstu tvo daga. Allt á skjánum breytist með.")),
-                Tips.Step("safety", t("Is it safe?", "Er öruggt?"), t("This checks wind gusts and waves on their own. Stay home means stay home.", "Þetta skoðar vindhviður og öldur sérstaklega. Vertu heima þýðir vertu heima.")),
+                Tips.Step("safety", t("Is it safe?", "Er óhætt að veiða?"), t("This checks wind gusts and waves on their own. Stay home means stay home.", "Þetta skoðar vindhviður og öldur sérstaklega. Vertu heima þýðir vertu heima.")),
                 Tips.Step("why", t("Why this score", "Af hverju"), t("These chips say what's helping or hurting. Long-press anything in Afli to have it explained.", "Þessir miðar segja hvað hjálpar og hvað ekki. Haltu fingri á hverju sem er í Afla til að fá útskýringu.")),
             ),
         )
@@ -293,7 +293,7 @@ private fun SpotChips(s: UiState, onSpot: (Spot) -> Unit) {
                 selected = sp.id == spot?.id,
                 dot = if (sp.water == Water.LAKE) C.sea else null,
                 explain = if (sp.water == Water.LAKE) t("${sp.label} is a lake. Lake fishing needs a permit.", "${sp.label} er vatn. Til að veiða í vötnum þarf veiðileyfi.")
-                else t("Tap to see the forecast for ${sp.label}.", "Ýttu til að sjá spána fyrir ${sp.label}."),
+                else t("Tap to see the forecast for ${sp.label}.", "Ýttu til að sjá spána fyrir þennan stað."),
                 onClick = { onSpot(sp) },
             )
         }
@@ -311,7 +311,7 @@ private fun HeroCard(s: UiState, spot: Spot, now: HourScore, sel: Int, hours: Li
         Row(verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
                 Text(
-                    if (s.atSpot) t("You're at ${spot.label}", "Þú ert við ${spot.label}") else spot.label,
+                    if (s.atSpot) t("You're at ${spot.label}", if (spot.builtIn) "Þú ert við ${spot.label}" else "Þú ert hér: ${spot.label}") else spot.label,
                     style = T.small,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
@@ -351,7 +351,7 @@ private fun HeroCard(s: UiState, spot: Spot, now: HourScore, sel: Int, hours: Li
 
         // Tide, best time, bait.
         Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            if (spot.water == Water.SEA) tideLine(hours, sel)?.let { InfoLine(t("Tide", "Sjór"), it) }
+            if (spot.water == Water.SEA) tideLine(hours, sel)?.let { InfoLine(t("Tide", "Sjávarföll"), it) }
             s.window?.let { w ->
                 val nowMs = System.currentTimeMillis()
                 val from = if (w.start <= nowMs) t("now", "núna") else "${dayWord(w.start).lowercase(app.afli.L.locale)} ${clock(w.start)}"
@@ -705,20 +705,20 @@ private fun buildTiles(s: UiState, spot: Spot, hours: List<Hour>, sel: Int, h: H
         "wind", t("Wind", "Vindur"),
         "${fmt(h.wind)} m/s",
         "${compass(h.windDir)} · " + t("gusts", "hviður") + " ${fmt(h.gust)}",
-        t("Average wind and where it's from. Gusts are the strongest bursts; over 15 m/s is hard work on the shore.", "Meðalvindur og úr hvaða átt. Hviður eru sterkustu kviðurnar; yfir 15 m/s er erfitt að standa við veiðar."),
+        t("Average wind and where it's from. Gusts are the strongest bursts; over 15 m/s is hard work on the shore.", "Meðalvindur og úr hvaða átt. Hviður eru snörpustu vindkviðurnar; yfir 15 m/s er erfitt að veiða frá landi."),
         mini = { m -> MiniWind(h.windDir, m) },
         full = {
             val (sl, mk) = slice(0, 24)
             Row(verticalAlignment = Alignment.CenterVertically) {
-                WindDial(h.windDir, spot.facing, Modifier.size(132.dp).explains(t("The arrow shows where the wind is blowing to; the brass tick on the rim is which way the water is from your spot.", "Örin sýnir hvert vindurinn blæs; látúnsstrikið á hringnum sýnir í hvaða átt vatnið er frá staðnum.")))
+                WindDial(h.windDir, spot.facing, Modifier.size(132.dp).explains(t("The arrow shows where the wind is blowing to; the brass tick on the rim is which way the water is from your spot.", "Örin sýnir hvert vindurinn blæs; gyllta strikið á hringnum sýnir í hvaða átt þú kastar.")))
                 Spacer(Modifier.width(14.dp))
                 Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     Stat(t("Wind", "Vindur"), "${fmt(h.wind)} m/s")
                     Stat(t("Gusts", "Hviður"), "${fmt(h.gust)} m/s")
-                    Stat(t("From", "Úr"), "${compass(h.windDir)} (${fmt(h.windDir)}°)")
+                    Stat(t("From", "Átt"), "${compass(h.windDir)} (${fmt(h.windDir)}°)")
                     spot.facing?.let { f ->
                         val on = kotlin.math.cos(Math.toRadians(h.windDir - f))
-                        Stat(t("At you", "Á þig"), if (on > 0.5) t("Onshore", "Að landi") else if (on < -0.5) t("Offshore", "Frá landi") else t("Side-on", "Á hlið"))
+                        Stat(t("At you", "Miðað við þig"), if (on > 0.5) t("Onshore", "Að landi") else if (on < -0.5) t("Offshore", "Frá landi") else t("Side-on", "Á hlið"))
                     }
                 }
             }
@@ -731,7 +731,7 @@ private fun buildTiles(s: UiState, spot: Spot, hours: List<Hour>, sel: Int, h: H
                 Text(
                     t(
                         "Live: ${l.station} (${fmt(l.distanceKm)} km) ${fmt(l.wind)} m/s, gusts ${fmt(l.gust)}. The next 12 hours are corrected to match.",
-                        "Rauntími: ${l.station} (${fmt(l.distanceKm)} km) ${fmt(l.wind)} m/s, hviður ${fmt(l.gust)}. Næstu 12 tímar eru leiðréttir í samræmi.",
+                        "Rauntími: ${l.station} (${fmt(l.distanceKm)} km) ${fmt(l.wind)} m/s, hviður ${fmt(l.gust)}. Næstu 12 tímar eru leiðréttir miðað við mælinguna.",
                     ),
                     style = T.small,
                 )
@@ -754,7 +754,7 @@ private fun buildTiles(s: UiState, spot: Spot, hours: List<Hour>, sel: Int, h: H
                 else -> "–"
             },
             next?.let { (if (it.high) t("High ", "Flóð ") else t("Low ", "Fjara ")) + clock(roundTo10(it.t)) } ?: t("Turn unknown", "Óvíst"),
-            t("Whether the tide is coming in or going out, and when it next turns. Moving water feeds fish; slack water at the turn is often quiet.", "Hvort er aðfall eða útfall og hvenær snýst næst. Straumur gefur fiskinum æti; liggjandinn er oft rólegur."),
+            t("Whether the tide is coming in or going out, and when it next turns. Moving water feeds fish; slack water at the turn is often quiet.", "Hvort það er aðfall eða útfall og hvenær fallið snýst næst. Straumurinn ber æti að fiskinum; liggjandinn er oft rólegur."),
             mini = { m ->
                 val (sl, mk) = slice(6, 12)
                 Sparkline(sl.map { it.seaLevel }, m, C.sea, marker = mk)
@@ -772,11 +772,11 @@ private fun buildTiles(s: UiState, spot: Spot, hours: List<Hour>, sel: Int, h: H
                     when {
                         spring > 0.8 -> t("Big tides (spring tides, near new or full moon): the water moves fast.", "Stórstreymi (nálægt nýju eða fullu tungli): sjórinn streymir hratt.")
                         spring < 0.2 -> t("Small tides (neap tides, near half moon): gentler flow.", "Smástreymi (nálægt hálfu tungli): hægari straumur.")
-                        else -> t("Medium tides this week.", "Meðalstraumur þessa dagana.")
+                        else -> t("Medium tides this week.", "Meðalstreymi þessa dagana.")
                     },
                     style = T.small,
                 )
-                Text(t("A model estimate. Not for navigation.", "Mat úr líkani. Ekki til siglinga."), style = T.small.copy(color = C.faint))
+                Text(t("A model estimate. Not for navigation.", "Mat úr líkani. Ekki ætlað til siglinga."), style = T.small.copy(color = C.faint))
             },
         )
     }
@@ -788,7 +788,7 @@ private fun buildTiles(s: UiState, spot: Spot, hours: List<Hour>, sel: Int, h: H
             "sea", t("Sea", "Sjór"),
             "${fmt(h.sst, 1)} °C",
             t("Waves", "Öldur") + " ${fmt(wave, 1)} m" + if (spot.sheltered) t(" · less in harbour", " · minni í höfn") else "",
-            t("Sea surface temperature and offshore wave height (model). Harbours feel only about a third of the waves.", "Sjávarhiti við yfirborð og ölduhæð úti fyrir (líkan). Hafnir finna bara um þriðjung af öldunni."),
+            t("Sea surface temperature and offshore wave height (model). Harbours feel only about a third of the waves.", "Sjávarhiti við yfirborð og ölduhæð úti fyrir (líkan). Í höfnum er aldan bara um þriðjungur af því."),
             mini = { m -> WaveGlyph(if (spot.sheltered) wave * 0.3 else wave, m) },
             full = {
                 val (past, mk) = slice(7 * 24, 48)
@@ -829,7 +829,7 @@ private fun buildTiles(s: UiState, spot: Spot, hours: List<Hour>, sel: Int, h: H
         },
         full = {
             val (sl, mk) = slice(24, 24)
-            Text(t("Yesterday to tomorrow", "Frá í gær til morguns"), style = T.small)
+            Text(t("Yesterday to tomorrow", "Frá í gær fram á morgun"), style = T.small)
             Sparkline(sl.map { it.pressure }, Modifier.fillMaxWidth().height(72.dp), C.foam, marker = mk, floor = 6.0)
             HourAxis(sl.map { it.t }, Modifier.fillMaxWidth().height(14.dp))
             Spacer(Modifier.height(6.dp))
@@ -859,7 +859,7 @@ private fun buildTiles(s: UiState, spot: Spot, hours: List<Hour>, sel: Int, h: H
             up -> (day.set?.takeIf { it > h.t } ?: tomorrow.set)?.let { t("Sunset ", "Sólsetur ") + clock(it) } ?: "–"
             else -> (day.rise?.takeIf { it > h.t } ?: tomorrow.rise)?.let { t("Sunrise ", "Sólarupprás ") + clock(it) } ?: "–"
         },
-        t("How bright it is. Dawn and dusk (the brass bands) are when many fish come close to feed.", "Hversu bjart er. Í ljósaskiptunum (látúnslituðu böndin) kemur margur fiskurinn nær til að éta."),
+        t("How bright it is. Dawn and dusk (the brass bands) are when many fish come close to feed.", "Hversu bjart er. Í ljósaskiptunum (gylltu böndunum) koma margir fiskar nær landi til að éta."),
         mini = { m -> SunGlyph(sun, m) },
         full = {
             val start = Instant.ofEpochMilli(h.t).atZone(ZoneId.systemDefault()).toLocalDate().atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli()
@@ -883,12 +883,12 @@ private fun buildTiles(s: UiState, spot: Spot, hours: List<Hour>, sel: Int, h: H
         "air", t("Air", "Loft"),
         "${fmt(h.airTemp)} °C",
         when {
-            !feels.isNaN() && h.airTemp - feels >= 2 -> t("Feels like ", "Finnst eins og ") + "${fmt(feels)} °C"
+            !feels.isNaN() && h.airTemp - feels >= 2 -> t("Feels like ", "Vindkæling ") + "${fmt(feels)} °C"
             !rain.isNaN() && rain >= 0.1 -> t("Rain ", "Úrkoma ") + "${fmt(rain, 1)} mm"
-            !h.cloud.isNaN() -> t("Cloud ", "Skýjað ") + "${fmt(h.cloud)}%"
+            !h.cloud.isNaN() -> t("Cloud ", "Ský ") + "${fmt(h.cloud)}%"
             else -> "–"
         },
-        t("Air temperature, how cold it feels in the wind, rain and cloud. Dress for the 'feels like' number.", "Lofthiti, hversu kalt er í vindinum, úrkoma og skýjahula. Klæddu þig eftir því hvernig hitinn finnst."),
+        t("Air temperature, how cold it feels in the wind, rain and cloud. Dress for the 'feels like' number.", "Lofthiti, hversu kalt er í vindinum, úrkoma og skýjahula. Klæddu þig eftir vindkælingunni."),
         mini = { m ->
             val (sl, mk) = slice(0, 24)
             Sparkline(sl.map { it.airTemp }, m, C.ok, marker = mk, floor = 3.0)
@@ -903,7 +903,7 @@ private fun buildTiles(s: UiState, spot: Spot, hours: List<Hour>, sel: Int, h: H
             HourAxis(sl.map { it.t }, Modifier.fillMaxWidth().height(14.dp))
             Spacer(Modifier.height(6.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                Stat(t("Feels", "Finnst"), "${fmt(feels)} °C")
+                Stat(t("Feels", "Vindkæling"), "${fmt(feels)} °C")
                 Stat(t("Cloud", "Ský"), "${fmt(h.cloud)}%")
             }
         },
@@ -988,7 +988,7 @@ private fun FishCard(sp: Species, v: Int, at: Long?, water: Double, modifier: Mo
         }
         val note = when {
             sp.months != null -> t("Season May–September", "Tímabil maí–september")
-            sp.reach < 0.5 -> t("Rare from shore", "Sjaldgæfur frá landi")
+            sp.reach < 0.5 -> t("Rare from shore", "Veiðist sjaldan frá landi")
             else -> null
         }
         note?.let { Text(it, style = T.small.copy(color = C.faint), modifier = Modifier.padding(top = 4.dp)) }
@@ -1013,7 +1013,7 @@ private fun SpotCard(spot: Spot, onFixSpot: () -> Unit) {
                     else t("Sea, open coast", "Sjór, opin strönd"),
                 )
                 append(" · ")
-                append(if (spot.facing != null) t("water to the ${compass(spot.facing)}", "vatnið í ${compass(spot.facing)}") else t("water direction not set", "stefna vatnsins ekki stillt"))
+                append(if (spot.facing != null) t("water to the ${compass(spot.facing)}", "snýr í ${compass(spot.facing)}") else t("water direction not set", "stefna ekki stillt"))
             },
             style = T.body,
         )
@@ -1021,7 +1021,7 @@ private fun SpotCard(spot: Spot, onFixSpot: () -> Unit) {
         GlassButton(
             t("Fix spot", "Stilla stað"),
             accent = C.brass,
-            explain = t("Point your phone at the water to set its direction, and say if it's a harbour or a lake.", "Beindu símanum að vatninu til að stilla stefnuna og segðu hvort þetta sé höfn eða vatn."),
+            explain = t("Point your phone at the water to set its direction, and say if it's a harbour or a lake.", "Beindu símanum þangað sem þú kastar til að stilla stefnuna og segðu hvort þetta sé höfn eða vatn."),
             onClick = onFixSpot,
         )
     }

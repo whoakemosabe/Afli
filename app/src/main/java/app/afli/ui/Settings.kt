@@ -91,7 +91,7 @@ fun SettingsContent(onReplayIntro: () -> Unit) {
                 style = T.small,
             )
             Spacer(Modifier.height(6.dp))
-            Text(t("Tides here are a model estimate and not for navigation.", "Sjávarföllin hér eru mat úr líkani og ekki til siglinga."), style = T.small.copy(color = C.faint))
+            Text(t("Tides here are a model estimate and not for navigation.", "Sjávarföllin hér eru mat úr líkani og ekki ætluð til siglinga."), style = T.small.copy(color = C.faint))
             Spacer(Modifier.height(6.dp))
             Text(t("Version ", "Útgáfa ") + Updater.installedVersion(context), style = T.small.copy(color = C.faint))
         }
@@ -239,7 +239,7 @@ fun UpdateBanner(modifier: Modifier = Modifier) {
             shape = androidx.compose.foundation.shape.RoundedCornerShape(22.dp),
             padding = androidx.compose.foundation.layout.PaddingValues(horizontal = 16.dp, vertical = 12.dp),
             glow = C.brass,
-            explain = t("A new version of Afli is out. Tap to download it, then tap again to install. It installs over this one; your trips are kept.", "Ný útgáfa af Afla er komin. Ýttu til að sækja hana og aftur til að setja upp. Hún fer yfir þessa og ferðirnar þínar haldast."),
+            explain = t("A new version of Afli is out. Tap to download it, then tap again to install. It installs over this one; your trips are kept.", "Ný útgáfa af Afla er komin. Ýttu til að sækja hana og aftur til að setja upp. Hún kemur í stað þessarar og ferðirnar þínar haldast."),
             onClick = {
                 when (val st = state) {
                     UpdateUi.Idle, is UpdateUi.Error -> {
@@ -320,17 +320,17 @@ fun SpotFixContent(spot: Spot, onDone: () -> Unit) {
     var sheltered by remember(spot.id) { mutableStateOf(spot.sheltered) }
     var water by remember(spot.id) { mutableStateOf(spot.water) }
     Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
-        Text(t("Fix ", "Stilla ") + spot.label, style = T.title)
+        Text(t("Fix ", "Stilla stað: ") + spot.label, style = T.title)
         GlassCard(Modifier.fillMaxWidth()) {
-            SectionLabel(t("Which way is the water?", "Í hvaða átt er vatnið?"))
-            Text(t("Stand at the edge, point the top of your phone at the water, and tap Set.", "Stattu á bakkanum, beindu toppi símans að vatninu og ýttu á Stilla."), style = T.small)
+            SectionLabel(t("Which way is the water?", "Í hvaða átt kastarðu?"))
+            Text(t("Stand at the edge, point the top of your phone at the water, and tap Set.", "Stattu við brúnina, beindu efri enda símans þangað sem þú kastar og ýttu á Stilla."), style = T.small)
             Spacer(Modifier.height(10.dp))
             Row(verticalAlignment = Alignment.CenterVertically) {
                 WindDial(Double.NaN, heading.value?.toDouble(), Modifier.size(110.dp))
                 Spacer(Modifier.size(14.dp))
                 Column {
                     Text(heading.value?.let { "${it.roundToInt()}° ${compass(it.toDouble())}" } ?: t("No compass on this phone", "Enginn áttaviti í þessum síma"), style = T.number)
-                    Text(facing?.let { t("Saved: water to the ${compass(it)}", "Vistað: vatnið í ${compass(it)}") } ?: t("Not set yet", "Ekki stillt enn"), style = T.small)
+                    Text(facing?.let { t("Saved: water to the ${compass(it)}", "Vistað: snýr í ${compass(it)}") } ?: t("Not set yet", "Ekki stillt enn"), style = T.small)
                     Spacer(Modifier.height(8.dp))
                     GlassButton(t("Set", "Stilla"), accent = C.brass, onClick = {
                         heading.value?.let {
@@ -342,14 +342,14 @@ fun SpotFixContent(spot: Spot, onDone: () -> Unit) {
             }
         }
         GlassCard(Modifier.fillMaxWidth()) {
-            SectionLabel(t("What kind of water?", "Hvers konar vatn?"))
+            SectionLabel(t("What kind of water?", "Hvers konar staður?"))
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 GlassChip(t("Harbour", "Höfn"), selected = water == Water.SEA && sheltered, onClick = { water = Water.SEA; sheltered = true })
                 GlassChip(t("Open coast", "Opin strönd"), selected = water == Water.SEA && !sheltered, onClick = { water = Water.SEA; sheltered = false })
                 GlassChip(t("Lake", "Vatn"), selected = water == Water.LAKE, onClick = { water = Water.LAKE; sheltered = false })
             }
             Spacer(Modifier.height(6.dp))
-            Text(t("Harbours feel much less of the waves, so they're safer in a swell.", "Hafnir finna mun minna fyrir öldunni og eru því öruggari í ölduróti."), style = T.small)
+            Text(t("Harbours feel much less of the waves, so they're safer in a swell.", "Í höfnum gætir öldunnar mun minna og þar er því öruggara í ölduróti."), style = T.small)
         }
         GlassButton(t("Save", "Vista"), accent = C.brass, modifier = Modifier.padding(bottom = 6.dp), onClick = {
             Repo.saveSpot(context, spot.copy(facing = facing, sheltered = sheltered, water = water))
