@@ -1,0 +1,22 @@
+name: Probe data
+on:
+  push:
+    branches: [probe-data]
+permissions:
+  contents: write
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - run: |
+          mkdir -p probe
+          curl -sSL "https://datalogger.hafogvatn.cloud/ext/measurements/locations/names/newest?locationName=Reykj%C3%A1v%C3%ADk&valueType=TEMPERATURE" -o probe/newest_bad.json || true
+          curl -sSL "https://datalogger.hafogvatn.cloud/ext/measurements/locations/names/newest?locationName=Reykjav%C3%ADk&valueType=TEMPERATURE" -o probe/newest.json -w "%{http_code}\n" || true
+          curl -sSL "https://datalogger.hafogvatn.cloud/ext/measurements/locations/info" -o probe/info.json || true
+          curl -sSL "https://www.lhg.is/wp-content/uploads/2025/11/Sjavarfallatoflur_2026_vefutgafa.pdf" -o probe/tides2026.pdf -w "%{http_code}\n" || true
+          curl -sSL "https://datalogger.hafogvatn.cloud/ext/measurements/openapi.json" -o probe/openapi.json -w "%{http_code}\n" || true
+          curl -sSL "https://datalogger.hafogvatn.cloud/ext/measurements/docs" -o probe/docs.html -w "%{http_code}\n" || true
+          ls -la probe
+          git config user.name probe && git config user.email probe@example.com
+          git add probe && git commit -m "probe results" && git push
