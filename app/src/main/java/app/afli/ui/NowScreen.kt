@@ -182,7 +182,7 @@ fun NowScreen(
             if (spot.water == Water.SEA && hours.any { !it.seaLevel.isNaN() }) {
                 GlassCard(
                     Modifier.fillMaxWidth(),
-                    explain = "Tide height for the next day from Open-Meteo's sea model. It's approximate near the coast; the brass line is now.",
+                    explain = "Tide height for the next day from Open-Meteo's sea model. Times run along the bottom; the brass line is now. High and low times are worked out between hourly points, so treat them as within about 15 minutes, and it's approximate near the coast.",
                 ) {
                     SectionLabel("Tide")
                     val flow = now.tideFlow
@@ -196,7 +196,7 @@ fun NowScreen(
                         style = T.heading,
                     )
                     Spacer(Modifier.height(8.dp))
-                    TideCurve(hours, nowMs(), Modifier.fillMaxWidth().height(130.dp), key = spot.id)
+                    TideCurve(hours, nowMs(), Modifier.fillMaxWidth().height(160.dp), key = spot.id)
                     Text("Approximate (model). Tap \"Fix spot\" to improve it later.", style = T.small.copy(color = C.faint))
                 }
             }

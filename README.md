@@ -2,9 +2,9 @@
 
 Will they bite? A native Android app for shore fishing on the Reykjanes peninsula that scores the water you're standing at, from the tide, light, wind, pressure and sea temperature, and says separately whether it's safe to go.
 
-Liquid glass over an animated sea (Kyant's Backdrop 2.0 lens and frost on Android 13+), with springy press effects, fades between screens, a blur behind sheets, and haptics.
+Liquid glass over an animated sea (Kyant's Backdrop 2.0 lens and frost on Android 13+), with springy press effects, fades between screens, a blur behind sheets (drag them down to close), and haptics.
 
-- **Now**: a bite score from 0 to 100 (Great, OK or Slow), the best fish to try for, and a separate **Safe / Careful / Stay home** pill. "Why" chips underneath say what's helping and hurting. Also the next best window in the next two days, a tide curve that draws itself in, a wind compass and the current conditions.
+- **Now**: a bite score from 0 to 100 (Great, OK or Slow), the best fish to try for, and a separate **Safe / Careful / Stay home** pill. "Why" chips underneath say what's helping and hurting. Also the next best window in the next two days, a tide curve that draws itself in (times along the bottom, and the time of each high and low), a wind compass and the current conditions.
 - **Forecast**: seven days of hour bars coloured by bite score, with Stay home hours tinted red. Tap a bar for that hour.
 - **Log**: Start fishing where you stand, tap a fish each time you catch one, End trip. Empty trips count. Each trip saves the conditions it started in.
 - **Spots by GPS**: no location chooser. Afli shows the saved spot you're standing at (within 300 m), otherwise where you are. Starting a trip somewhere new saves that place as a spot. Keflavík harbour, Njarðvík harbour, Kleifarvatn and Seltjörn are built in.
@@ -49,7 +49,7 @@ Every build runs a live check against these feeds for Keflavík harbour and puts
 
 Every push to `main` builds a signed APK and publishes it as a GitHub Release. Open the latest release on your phone and tap `afli.apk`. Builds are signed with one key kept in the repo's Actions secrets (`KEYSTORE_B64`, `KEYSTORE_PASSWORD`, and optionally `KEY_ALIAS`), never in the code, so new versions install over the old one. Other branches build as debug-signed checks.
 
-The app keeps itself current: it checks GitHub for a newer release when opened (at most hourly) and in the background every ~6 hours, shows a card on Now and one notification per version, and Settings → Updates downloads and installs it in place.
+The app keeps itself current: it checks GitHub for a newer release when opened (at most hourly) and in the background every ~6 hours, shows a banner across the top of the app and one notification per version, and one tap on the banner (or Settings → Updates) downloads and installs it in place.
 
 ## Layout
 

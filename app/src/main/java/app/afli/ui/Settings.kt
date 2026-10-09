@@ -6,6 +6,9 @@ import android.hardware.SensorEvent
 import android.hardware.SensorEventListener
 import android.hardware.SensorManager
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.foundation.clickable
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Arrangement
@@ -176,18 +179,100 @@ private fun ProgressBar(progress: Float) {
     }
 }
 
-/** A card on the Now screen when a new version is waiting. */
+/**
+ * The update banner across the top of every screen when a new version is waiting. One tap
+ * downloads it (progress fills the banner), the next installs it. Tap the × to hide it until
+ * the next version.
+ */
+/** The version whose banner was closed with ×, so the page can give the space back. */
+var bannerHidden by mutableStateOf<String?>(null)
+
 @Composable
-fun UpdateCard(onOpen: () -> Unit) {
+fun UpdateBanner(modifier: Modifier = Modifier) {
+    val context = LocalContext.current
+    val view = LocalView.current
+    val scope = rememberCoroutineScope()
     val waiting by UpdateWatch.waitingVersion.collectAsState()
-    val v = waiting ?: return
-    GlassCard(Modifier.fillMaxWidth(), onClick = onOpen) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Column(Modifier.weight(1f)) {
-                Text("Afli $v is ready", style = T.heading.copy(color = C.brass))
-                Text("Tap to download and install", style = T.small)
+    var state by remember { mutableStateOf<UpdateUi>(UpdateUi.Idle) }
+    var progress by remember { mutableFloatStateOf(0f) }
+    val v = waiting
+    androidx.compose.animation.AnimatedVisibility(
+        visible = v != null && bannerHidden != v,
+        modifier = modifier,
+        enter = androidx.compose.animation.slideInVertically(spring(dampingRatio = 0.8f, stiffness = Spring.StiffnessMediumLow)) { -it } +
+            androidx.compose.animation.fadeIn(tween(200)),
+        exit = androidx.compose.animation.slideOutVertically(tween(220)) { -it } + androidx.compose.animation.fadeOut(tween(180)),
+    ) {
+        val shown by animateFloatAsState(progress, tween(260), label = "bannerProgress")
+        GlassCard(
+            Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+            shape = androidx.compose.foundation.shape.RoundedCornerShape(22.dp),
+            padding = androidx.compose.foundation.layout.PaddingValues(horizontal = 16.dp, vertical = 12.dp),
+            glow = C.brass,
+            explain = "A new version of Afli is out. Tap to download it, then tap again to install. It installs over this one; your trips are kept.",
+            onClick = {
+                when (val st = state) {
+                    UpdateUi.Idle, is UpdateUi.Error -> {
+                        state = UpdateUi.Checking
+                        scope.launch {
+                            when (val r = Updater.check(context)) {
+                                is Updater.Check.Available -> {
+                                    state = UpdateUi.Downloading(r.release)
+                                    progress = 0f
+                                    state = try {
+                                        UpdateUi.Ready(Updater.download(context, r.release) { progress = it }, r.release.version)
+                                    } catch (e: Exception) {
+                                        UpdateUi.Error(e.message ?: "Download failed. Tap to try again.")
+                                    }
+                                    if (state is UpdateUi.Ready) Haptics.confirm(view)
+                                }
+                                Updater.Check.UpToDate -> {
+                                    UpdateWatch.remember(context, null)
+                                    state = UpdateUi.UpToDate
+                                }
+                                is Updater.Check.Failed -> state = UpdateUi.Error(r.message)
+                            }
+                        }
+                    }
+                    is UpdateUi.Ready -> {
+                        if (!Updater.install(context, st.file)) state = st.copy(note = "Allow Afli to install updates, then tap again.")
+                    }
+                    else -> {}
+                }
+            },
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Text("Afli $v is ready", style = T.heading.copy(color = C.brass))
+                    Text(
+                        when (val st = state) {
+                            UpdateUi.Idle -> "Tap to download"
+                            UpdateUi.Checking -> "Checking…"
+                            is UpdateUi.Downloading -> "Downloading… ${(progress * 100).toInt()}%"
+                            is UpdateUi.Ready -> st.note ?: "Downloaded. Tap to install"
+                            is UpdateUi.Error -> st.message
+                            UpdateUi.UpToDate -> "You're up to date"
+                            is UpdateUi.Available -> "Tap to download"
+                        },
+                        style = T.small,
+                    )
+                }
+                Text(
+                    "×",
+                    style = T.title.copy(color = C.mist),
+                    modifier = Modifier
+                        .clickable(interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }, indication = null) { bannerHidden = v }
+                        .padding(start = 12.dp, end = 4.dp),
+                )
             }
-            Text("Update", style = T.heading.copy(color = C.brass))
+            if (state is UpdateUi.Downloading) {
+                Spacer(Modifier.height(8.dp))
+                Canvas(Modifier.fillMaxWidth().height(4.dp)) {
+                    val r = CornerRadius(size.height / 2)
+                    drawRoundRect(C.line, cornerRadius = r)
+                    drawRoundRect(C.brass, size = Size(size.width * shown, size.height), cornerRadius = r)
+                }
+            }
         }
     }
 }

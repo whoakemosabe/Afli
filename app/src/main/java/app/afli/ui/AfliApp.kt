@@ -2,6 +2,19 @@ package app.afli.ui
 
 import android.provider.Settings as SystemSettings
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.core.Animatable
+import androidx.compose.foundation.gestures.Orientation
+import androidx.compose.foundation.gestures.draggable
+import androidx.compose.foundation.gestures.rememberDraggableState
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
+import androidx.compose.ui.input.nestedscroll.NestedScrollSource
+import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.unit.Velocity
+import kotlinx.coroutines.launch
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.Spring
@@ -98,7 +111,10 @@ fun AfliApp() {
 
     val statusTop = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
     val headerH = statusTop + 64.dp
-    val contentTop = headerH + 8.dp
+    // The update banner sits under the header; the page makes room for it while it's shown.
+    val waitingUpdate by UpdateWatch.waitingVersion.collectAsState()
+    val bannerSpace by animateDpAsState(if (waitingUpdate != null && waitingUpdate != bannerHidden) 84.dp else 0.dp, tween(320), label = "banner")
+    val contentTop = headerH + 8.dp + bannerSpace
     val touring by Tips.tour
     val blur by animateDpAsState(
         when {
@@ -142,7 +158,6 @@ fun AfliApp() {
                                 onSpot = { Repo.choose(context, it) },
                                 onFixSpot = { sheet = Sheet.FIX_SPOT },
                                 onRetry = { Repo.refresh(context) },
-                                banner = { UpdateCard { sheet = Sheet.SETTINGS } },
                             )
                             1 -> ForecastScreen(s, contentTop)
                             2 -> LogScreen(
@@ -182,6 +197,8 @@ fun AfliApp() {
                 androidx.compose.foundation.layout.Spacer(Modifier.width(8.dp))
                 GlassChip("Settings", explain = "Updates, tips and data credits.", onClick = { sheet = Sheet.SETTINGS })
             }
+
+            UpdateBanner(Modifier.padding(top = headerH + 4.dp).blur(blur))
 
             BottomBar(tab, Modifier.align(Alignment.BottomCenter)) {
                 if (it != tab) {
@@ -258,16 +275,68 @@ private fun BottomBar(selected: Int, modifier: Modifier, onSelect: (Int) -> Unit
     }
 }
 
-/** A glass sheet that rises from the bottom over a dimmed, blurred page. */
+/**
+ * A glass sheet that rises from the bottom over a dimmed, blurred page. Drag it down to close:
+ * from the handle, or from the content once it's scrolled to the top. Let go past a third of
+ * its height, or flick down, and it closes; otherwise it springs back.
+ */
 @Composable
 private fun SheetHost(open: Boolean, onClose: () -> Unit, content: @Composable () -> Unit) {
     val backdrop = LocalBackdrop.current
+    val view = LocalView.current
+    val scope = rememberCoroutineScope()
+    val drag = remember { Animatable(0f) }
+    var sheetH by remember { mutableFloatStateOf(1f) }
+    LaunchedEffect(open) { if (open) drag.snapTo(0f) }
+    val pulled = (drag.value / sheetH).coerceIn(0f, 1f)
     val scrim by animateFloatAsState(if (open) 1f else 0f, tween(300), label = "scrim")
+
+    fun settle(velocity: Float) {
+        scope.launch {
+            if (drag.value > sheetH / 3f || velocity > 1800f) {
+                Haptics.settle(view)
+                onClose()
+            } else {
+                drag.animateTo(0f, spring(dampingRatio = 0.75f, stiffness = Spring.StiffnessMedium), initialVelocity = velocity)
+            }
+        }
+    }
+
+    // Content scroll hands over to the sheet: pulling down at the top drags the sheet.
+    val nested = remember {
+        object : NestedScrollConnection {
+            override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
+                if (available.y < 0 && drag.value > 0f) {
+                    val used = maxOf(available.y, -drag.value)
+                    scope.launch { drag.snapTo(drag.value + used) }
+                    return Offset(0f, used)
+                }
+                return Offset.Zero
+            }
+
+            override fun onPostScroll(consumed: Offset, available: Offset, source: NestedScrollSource): Offset {
+                if (available.y > 0 && source == NestedScrollSource.UserInput) {
+                    scope.launch { drag.snapTo(drag.value + available.y) }
+                    return Offset(0f, available.y)
+                }
+                return Offset.Zero
+            }
+
+            override suspend fun onPreFling(available: Velocity): Velocity {
+                if (drag.value > 0f) {
+                    settle(available.y)
+                    return available
+                }
+                return Velocity.Zero
+            }
+        }
+    }
+
     if (scrim > 0.01f) {
         Box(
             Modifier
                 .fillMaxSize()
-                .graphicsLayer { alpha = scrim }
+                .graphicsLayer { alpha = scrim * (1f - pulled * 0.7f) }
                 .background(Color(0x99020810))
                 .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null, onClick = onClose),
         )
@@ -282,14 +351,22 @@ private fun SheetHost(open: Boolean, onClose: () -> Unit, content: @Composable (
                 Modifier
                     .fillMaxWidth()
                     .heightIn(max = 720.dp)
+                    .onSizeChanged { sheetH = it.height.toFloat().coerceAtLeast(1f) }
+                    .offset { IntOffset(0, drag.value.roundToInt().coerceAtLeast(0)) }
                     .let { if (backdrop != null) it.glassSheet(backdrop) else it.background(Color(0xF207121F), RoundedCornerShape(topStart = 30.dp, topEnd = 30.dp)) }
                     .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) {}
+                    .draggable(
+                        rememberDraggableState { d -> scope.launch { drag.snapTo((drag.value + d).coerceAtLeast(0f)) } },
+                        Orientation.Vertical,
+                        onDragStopped = { v -> settle(v) },
+                    )
+                    .nestedScroll(nested)
                     .navigationBarsPadding()
                     .padding(horizontal = 16.dp)
                     .padding(top = 10.dp, bottom = 16.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
-                Box(Modifier.width(40.dp).height(4.dp).background(C.line, RoundedCornerShape(2.dp)))
+                Box(Modifier.width(40.dp).height(4.dp).background(C.mist.copy(alpha = 0.5f), RoundedCornerShape(2.dp)))
                 Box(Modifier.height(14.dp))
                 Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     content()
