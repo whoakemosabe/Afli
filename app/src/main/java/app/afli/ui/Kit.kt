@@ -1,6 +1,12 @@
 package app.afli.ui
 
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.tween
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.ExperimentalFoundationApi
@@ -31,6 +37,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.GraphicsLayerScope
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.unit.dp
@@ -54,6 +61,19 @@ fun rememberPress(): Press {
     return remember(interaction) { Press(interaction) { amount } }
 }
 
+/**
+ * Shrinks this node, glass and all, while [press] is down. Put it *before* the glass modifier in
+ * the chain so the whole pane squishes, not just the text inside it.
+ */
+fun Modifier.squish(press: Press, by: Float): Modifier = graphicsLayer(press.squishLayer(by))
+
+/** The same squish as a layer block, handed to the glass so its refraction stays lined up. */
+fun Press.squishLayer(by: Float, byY: Float = by): GraphicsLayerScope.() -> Unit = {
+    val k = amount()
+    scaleX = 1f - by * k
+    scaleY = 1f - byY * k
+}
+
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun Modifier.pressable(
@@ -65,11 +85,7 @@ fun Modifier.pressable(
 ): Modifier {
     val view = LocalView.current
     return this
-        .graphicsLayer {
-            val s = 1f - scaleBy * press.amount()
-            scaleX = s
-            scaleY = s
-        }
+        .let { if (scaleBy > 0f) it.squish(press, scaleBy) else it }
         .combinedClickable(
             interactionSource = press.interaction,
             indication = null,
@@ -122,13 +138,14 @@ fun GlassCard(
 ) {
     val backdrop = LocalBackdrop.current
     val press = rememberPress()
+    val squish = if (onClick != null || explain != null) press.squishLayer(0.02f) else null
     var m = modifier
+    m = if (backdrop != null) m.glassCard(backdrop, shape, press = press.amount, glow = glow, layer = squish)
+    else m.let { if (squish != null) it.graphicsLayer(squish) else it }.background(Color(0xCC07121F), shape)
     if (glow != null) m = m.border(1.dp, Brush.verticalGradient(listOf(glow.copy(alpha = 0.95f), glow.copy(alpha = 0.35f))), shape)
-    if (backdrop != null) m = m.glassCard(backdrop, shape, press = press.amount, glow = glow)
-    else m = m.background(Color(0xCC07121F), shape)
     m = when {
-        onClick != null -> m.pressable(press, explain, scaleBy = 0.02f, onClick = onClick)
-        explain != null -> m.pressable(press, explain, scaleBy = 0.02f, haptic = false, onClick = {})
+        onClick != null -> m.pressable(press, explain, scaleBy = 0f, onClick = onClick)
+        explain != null -> m.pressable(press, explain, scaleBy = 0f, haptic = false, onClick = {})
         else -> m
     }
     Column(m.padding(padding), content = content)
@@ -148,10 +165,10 @@ fun GlassButton(
     val backdrop = LocalBackdrop.current
     val press = rememberPress()
     val shape = RoundedCornerShape(50)
-    var m = modifier
-    m = if (backdrop != null) m.glassControl(backdrop, shape, press = press.amount) else m.background(Color(0x5506111D), shape)
+    val m = if (backdrop != null) modifier.glassControl(backdrop, shape, press = press.amount, layer = press.squishLayer(0.06f))
+    else modifier.squish(press, 0.06f).background(Color(0x5506111D), shape)
     Row(
-        m.pressable(press, explain, onClick = onClick).padding(horizontal = 20.dp, vertical = 12.dp),
+        m.pressable(press, explain, scaleBy = 0f, onClick = onClick).padding(horizontal = 20.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         if (leading != null) {
@@ -176,10 +193,10 @@ fun GlassChip(
     val press = rememberPress()
     val shape = RoundedCornerShape(50)
     val tint = if (selected) Color(0x55D8B56A) else Color(0x2605080F)
-    var m = modifier
-    m = if (backdrop != null) m.glassControl(backdrop, shape, press = press.amount, tint = tint) else m.background(tint.copy(alpha = 0.6f), shape)
+    val m = if (backdrop != null) modifier.glassControl(backdrop, shape, press = press.amount, tint = tint, layer = press.squishLayer(0.07f))
+    else modifier.squish(press, 0.07f).background(tint.copy(alpha = 0.6f), shape)
     Row(
-        m.pressable(press, explain, onClick = onClick).padding(horizontal = 14.dp, vertical = 9.dp),
+        m.pressable(press, explain, scaleBy = 0f, onClick = onClick).padding(horizontal = 14.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         if (dot != null) {
@@ -189,6 +206,46 @@ fun GlassChip(
         Text(text, style = T.small.copy(color = if (selected) C.brass else C.foam))
     }
 }
+
+/**
+ * A round glass button with one of Afli's icons, 44 dp so it's easy to hit. [spin] turns the
+ * icon continuously (Refresh while loading) and lets it finish its turn when it stops.
+ */
+@Composable
+fun GlassIconButton(
+    icon: Icon,
+    explain: String,
+    modifier: Modifier = Modifier,
+    spin: Boolean = false,
+    onClick: () -> Unit,
+) {
+    val backdrop = LocalBackdrop.current
+    val press = rememberPress()
+    val rot = remember { Animatable(0f) }
+    LaunchedEffect(spin) {
+        if (spin) while (true) rot.animateTo(rot.value + 360f, tween(900, easing = LinearEasing))
+        else rot.animateTo(kotlin.math.ceil(rot.value / 360f) * 360f, spring(dampingRatio = 0.7f, stiffness = Spring.StiffnessLow))
+    }
+    val m = if (backdrop != null) modifier.size(44.dp).glassControl(backdrop, CircleShape, press = press.amount, layer = press.squishLayer(0.1f))
+    else modifier.size(44.dp).squish(press, 0.1f).background(Color(0x5506111D), CircleShape)
+    Box(
+        m.border(1.dp, Rim, CircleShape).pressable(press, explain, scaleBy = 0f, onClick = onClick).semantics { contentDescription = explain },
+        contentAlignment = Alignment.Center,
+    ) {
+        AfliIcon(icon, C.foam, Modifier.size(22.dp).graphicsLayer { rotationZ = rot.value })
+    }
+}
+
+/**
+ * The crisp rim on floating glass: bright where light catches the top-left, nearly gone along
+ * the sides, a warm brass glint bottom-right.
+ */
+val Rim = Brush.linearGradient(
+    0f to Color(0xCCEAF4F8),
+    0.35f to Color(0x26EAF4F8),
+    0.65f to Color(0x1A2E8FB5),
+    1f to Color(0xB3D8B56A),
+)
 
 @Composable
 fun SectionLabel(text: String, modifier: Modifier = Modifier) {

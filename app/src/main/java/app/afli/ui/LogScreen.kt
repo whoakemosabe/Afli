@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
@@ -42,7 +43,7 @@ import kotlinx.coroutines.delay
  */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-fun LogScreen(s: UiState, top: Dp, onStart: () -> Unit, onCatch: (String) -> Unit, onUndo: () -> Unit, onEnd: () -> Unit, onDelete: (String) -> Unit) {
+fun LogScreen(s: UiState, top: Dp, scroll: ScrollState, onStart: () -> Unit, onCatch: (String) -> Unit, onUndo: () -> Unit, onEnd: () -> Unit, onDelete: (String) -> Unit) {
     val view = LocalView.current
     LaunchedEffect(Unit) {
         Tips.maybeTour(
@@ -53,7 +54,7 @@ fun LogScreen(s: UiState, top: Dp, onStart: () -> Unit, onCatch: (String) -> Uni
         )
     }
     Column(
-        Modifier.verticalScroll(rememberScrollState()).padding(top = top).padding(horizontal = 16.dp),
+        Modifier.verticalScroll(scroll).padding(top = top).padding(horizontal = 16.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
         AnimatedContent(

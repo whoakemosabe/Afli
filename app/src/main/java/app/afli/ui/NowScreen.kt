@@ -23,6 +23,12 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.ScrollState
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -64,10 +70,10 @@ fun compass(deg: Double): String {
 fun NowScreen(
     s: UiState,
     top: androidx.compose.ui.unit.Dp,
+    scroll: ScrollState,
     onSpot: (app.afli.model.Spot) -> Unit,
     onFixSpot: () -> Unit,
     onRetry: () -> Unit,
-    banner: @Composable () -> Unit = {},
 ) {
     val now = s.now
     val spot = s.spot
@@ -83,13 +89,11 @@ fun NowScreen(
     }
     Column(
         Modifier
-            .verticalScroll(rememberScrollState())
+            .verticalScroll(scroll)
             .padding(top = top)
             .padding(horizontal = 16.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
-        banner()
-
         // Spot chips: where Afli thinks he is, then saved spots.
         Row(
             Modifier.horizontalScroll(rememberScrollState()).padding(top = 4.dp),
@@ -121,8 +125,12 @@ fun NowScreen(
         }
 
         if (now == null && s.error == null) {
+            // A slow breathing pulse so it's clearly working, not stuck.
+            val pulse by rememberInfiniteTransition(label = "loading").animateFloat(
+                0.45f, 1f, infiniteRepeatable(tween(900), RepeatMode.Reverse), label = "pulse",
+            )
             GlassCard(Modifier.fillMaxWidth()) {
-                Text(if (s.gpsAsked) "Reading the sea…" else "Finding where you are…", style = T.title)
+                Text(if (s.gpsAsked) "Reading the sea…" else "Finding where you are…", style = T.title, modifier = Modifier.graphicsLayer { alpha = pulse })
                 Spacer(Modifier.height(6.dp))
                 Text("Pulling the forecast, tides and sea temperature.", style = T.small)
             }
@@ -197,7 +205,7 @@ fun NowScreen(
                     )
                     Spacer(Modifier.height(8.dp))
                     TideCurve(hours, nowMs(), Modifier.fillMaxWidth().height(160.dp), key = spot.id)
-                    Text("Approximate (model). Tap \"Fix spot\" to improve it later.", style = T.small.copy(color = C.faint))
+                    Text("A model estimate. Not for navigation.", style = T.small.copy(color = C.faint))
                 }
             }
 

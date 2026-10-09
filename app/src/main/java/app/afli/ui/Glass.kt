@@ -3,10 +3,21 @@ package app.afli.ui
 import android.os.Build
 import androidx.compose.foundation.shape.CornerBasedShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.staticCompositionLocalOf
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.drawscope.withTransform
+import androidx.compose.ui.layout.layout
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.GraphicsLayerScope
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.kyant.backdrop.BackdropEffectScope
@@ -73,9 +84,11 @@ fun Modifier.glassCard(
     frost: Dp = 10.dp,
     tint: Color = Color(0x2E06111D),
     glow: Color? = null,
+    layer: (GraphicsLayerScope.() -> Unit)? = null,
 ): Modifier = drawBackdrop(
     backdrop = backdrop,
     shape = { shape },
+    layerBlock = layer,
     effects = {
         colorControls(saturation = 1.25f)
         blur(frost.toPx())
@@ -97,9 +110,11 @@ fun Modifier.glassControl(
     shape: CornerBasedShape = RoundedCornerShape(50),
     press: () -> Float = { 0f },
     tint: Color = Color(0x2605080F),
+    layer: (GraphicsLayerScope.() -> Unit)? = null,
 ): Modifier = drawBackdrop(
     backdrop = backdrop,
     shape = { shape },
+    layerBlock = layer,
     effects = {
         colorControls(saturation = 1.3f)
         blur(2.dp.toPx())
@@ -128,19 +143,49 @@ fun Modifier.glassSheet(backdrop: LayerBackdrop, radius: Dp = 30.dp): Modifier =
     },
 )
 
-/** The frosted band behind the status bar and title: no lens, dissolves at the bottom. */
-fun Modifier.glassHeader(backdrop: LayerBackdrop, fade: Dp = 28.dp): Modifier = drawPlainBackdrop(
-    backdrop = backdrop,
-    shape = { RoundedCornerShape(0.dp) },
-    effects = {
-        colorControls(saturation = 1.2f)
-        blur(18.dp.toPx())
-        dissolve(size.height - fade.toPx(), size.height)
-    },
-    onDrawSurface = {
-        val h = size.height
-        val k = ((h - fade.toPx()) / h).coerceIn(0f, 1f)
-        val tint = if (glassFull) Color(0x5207121F) else Color(0xCC07121F)
-        drawRect(Brush.verticalGradient(0f to tint, k to tint.copy(alpha = tint.alpha * 0.6f), 1f to Color.Transparent))
-    },
-)
+/**
+ * The frosted band behind the status bar and title: no lens, dissolves at the bottom. The pane
+ * reaches [margin] past the top and sides of the screen and the page is mirrored into that
+ * margin, so the blur never pulls in empty space at the edges (which left a thin, clear strip
+ * along the very top). Same fix as Ljós and Skjálfti.
+ */
+@Composable
+fun GlassHeader(backdrop: LayerBackdrop, height: Dp, modifier: Modifier = Modifier, fade: Dp = 28.dp, margin: Dp = 40.dp) {
+    val density = LocalDensity.current
+    val fadePx = with(density) { fade.toPx() }
+    val m = with(density) { margin.roundToPx() }
+    val screenW = remember { floatArrayOf(0f) }
+    Box(modifier.fillMaxWidth().height(height)) {
+        Box(
+            Modifier
+                .layout { measurable, constraints ->
+                    screenW[0] = constraints.maxWidth.toFloat()
+                    val p = measurable.measure(Constraints.fixed(constraints.maxWidth + m * 2, constraints.maxHeight + m))
+                    layout(constraints.maxWidth, constraints.maxHeight) { p.place(-m, -m) }
+                }
+                .drawPlainBackdrop(
+                    backdrop = backdrop,
+                    shape = { RoundedCornerShape(0.dp) },
+                    effects = {
+                        colorControls(saturation = 1.2f)
+                        blur(18.dp.toPx())
+                        dissolve(size.height - fadePx, size.height)
+                    },
+                    onDrawBackdrop = { drawPage ->
+                        drawPage()
+                        val mf = m.toFloat()
+                        val right = mf + screenW[0]
+                        withTransform({ scale(-1f, 1f, pivot = Offset(mf, 0f)) }) { drawPage() }
+                        withTransform({ scale(-1f, 1f, pivot = Offset(right, 0f)) }) { drawPage() }
+                        withTransform({ scale(1f, -1f, pivot = Offset(0f, mf)) }) { drawPage() }
+                    },
+                    onDrawSurface = {
+                        val h = size.height
+                        val k = ((h - fadePx) / h).coerceIn(0f, 1f)
+                        val tint = if (glassFull) Color(0x5207121F) else Color(0xCC07121F)
+                        drawRect(Brush.verticalGradient(0f to tint, k to tint.copy(alpha = tint.alpha * 0.6f), 1f to Color.Transparent))
+                    },
+                ),
+        )
+    }
+}

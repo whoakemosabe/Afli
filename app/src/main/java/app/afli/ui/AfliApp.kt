@@ -81,6 +81,18 @@ import app.afli.update.UpdateWatch
 import com.kyant.backdrop.backdrops.layerBackdrop
 import com.kyant.backdrop.backdrops.rememberLayerBackdrop
 import kotlin.math.roundToInt
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.GraphicsLayerScope
+import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.size
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.sp
 
 private enum class Sheet { SETTINGS, FIX_SPOT }
 
@@ -95,6 +107,9 @@ fun AfliApp() {
     var onboarded by remember { mutableStateOf(Repo.store().onboarded) }
     var tab by rememberSaveable { mutableIntStateOf(0) }
     var sheet by remember { mutableStateOf<Sheet?>(null) }
+    // One scroll position per tab, so switching tabs and back keeps your place.
+    val scrolls = List(4) { rememberScrollState() }
+    val scope = rememberCoroutineScope()
     val calm = remember { SystemSettings.Global.getFloat(context.contentResolver, SystemSettings.Global.ANIMATOR_DURATION_SCALE, 1f) == 0f }
     val openUpdates by UpdateWatch.openUpdates.collectAsState()
 
@@ -154,21 +169,21 @@ fun AfliApp() {
                     ) { t ->
                         when (t) {
                             0 -> NowScreen(
-                                s, contentTop,
+                                s, contentTop, scrolls[0],
                                 onSpot = { Repo.choose(context, it) },
                                 onFixSpot = { sheet = Sheet.FIX_SPOT },
                                 onRetry = { Repo.refresh(context) },
                             )
-                            1 -> ForecastScreen(s, contentTop)
+                            1 -> ForecastScreen(s, contentTop, scrolls[1])
                             2 -> LogScreen(
-                                s, contentTop,
+                                s, contentTop, scrolls[2],
                                 onStart = { Repo.startTrip(context) },
                                 onCatch = { Repo.addCatch(it) },
                                 onUndo = { Repo.undoCatch() },
                                 onEnd = { Repo.endTrip() },
                                 onDelete = { Repo.deleteTrip(it) },
                             )
-                            else -> GuideScreen(contentTop)
+                            else -> GuideScreen(contentTop, scrolls[3])
                         }
                     }
                 }
@@ -177,7 +192,7 @@ fun AfliApp() {
 
         if (onboarded) CompositionLocalProvider(LocalBackdrop provides pageBackdrop) {
             // Frosted header band: the page scrolls under it and shows through, blurred.
-            Box(Modifier.fillMaxWidth().height(headerH + 24.dp).blur(blur).glassHeader(pageBackdrop))
+            GlassHeader(pageBackdrop, headerH + 24.dp, Modifier.blur(blur))
             Row(
                 Modifier.fillMaxWidth().blur(blur).statusBarsPadding().height(64.dp).padding(horizontal = 16.dp),
                 verticalAlignment = Alignment.CenterVertically,
@@ -193,18 +208,17 @@ fun AfliApp() {
                         style = T.small,
                     )
                 }
-                GlassChip("Refresh", explain = "Finds where you are again and reloads the forecast.", onClick = { Repo.refresh(context) })
-                androidx.compose.foundation.layout.Spacer(Modifier.width(8.dp))
-                GlassChip("Settings", explain = "Updates, tips and data credits.", onClick = { sheet = Sheet.SETTINGS })
+                GlassIconButton(Icon.REFRESH, "Refresh: finds where you are again and reloads the forecast.", spin = s.loading) { Repo.refresh(context) }
+                androidx.compose.foundation.layout.Spacer(Modifier.width(10.dp))
+                GlassIconButton(Icon.SETTINGS, "Settings: updates, tips and data credits.") { sheet = Sheet.SETTINGS }
             }
 
             UpdateBanner(Modifier.padding(top = headerH + 4.dp).blur(blur))
 
             BottomBar(tab, Modifier.align(Alignment.BottomCenter)) {
-                if (it != tab) {
-                    Haptics.segment(view)
-                    tab = it
-                }
+                Haptics.segment(view)
+                if (it != tab) tab = it
+                else scope.launch { scrolls[it].animateScrollTo(0, spring(stiffness = Spring.StiffnessMediumLow)) }
             }
 
             ExplainBubble(Modifier.align(Alignment.BottomCenter).navigationBarsPadding().padding(bottom = 92.dp))
@@ -226,19 +240,41 @@ fun AfliApp() {
     }
 }
 
-/** A floating capsule of liquid glass with a brass pill that springs to the selected tab. */
+private val tabIcons = listOf(Icon.NOW, Icon.FORECAST, Icon.LOG, Icon.GUIDE)
+private val tabExplain = listOf(
+    "Now: the bite score, safety and conditions where you are.",
+    "Forecast: the week ahead, hour by hour.",
+    "Log: start a trip and tap each fish you catch.",
+    "Guide: how everything works, and the fish.",
+)
+
+/**
+ * A floating capsule of liquid glass with a crisp rim. Pressing any tab squishes the whole
+ * capsule (glass and all) and deepens its lens, the tab's icon dips under the finger, and a
+ * brass pill with a sharp edge springs to the chosen tab. Long-press a tab to hear what it is.
+ */
 @Composable
 private fun BottomBar(selected: Int, modifier: Modifier, onSelect: (Int) -> Unit) {
     val backdrop = LocalBackdrop.current
-    val press = rememberPress()
     val shape = RoundedCornerShape(50)
+    val presses = tabs.indices.map { rememberPress() }
+    val held: () -> Float = { presses.maxOf { it.amount() } }
     BoxWithConstraints(
         modifier
             .navigationBarsPadding()
             .padding(horizontal = 20.dp, vertical = 12.dp)
             .fillMaxWidth()
             .height(64.dp)
-            .let { if (backdrop != null) it.glassControl(backdrop, shape, press = press.amount) else it.background(Color(0xCC07121F), shape) },
+            .let {
+                val squish: GraphicsLayerScope.() -> Unit = {
+                    val k = held()
+                    scaleX = 1f - 0.035f * k
+                    scaleY = 1f - 0.06f * k
+                }
+                if (backdrop != null) it.glassControl(backdrop, shape, press = held, layer = squish)
+                else it.graphicsLayer(squish).background(Color(0xCC07121F), shape)
+            }
+            .border(1.dp, Rim, shape),
     ) {
         val w = maxWidth / tabs.size
         val density = LocalDensity.current
@@ -247,27 +283,44 @@ private fun BottomBar(selected: Int, modifier: Modifier, onSelect: (Int) -> Unit
             spring(dampingRatio = 0.72f, stiffness = Spring.StiffnessMediumLow),
             label = "tabPill",
         )
+        val pill = RoundedCornerShape(50)
         Box(
             Modifier
                 .offset { IntOffset(x.roundToInt(), 0) }
                 .width(w)
                 .fillMaxSize()
-                .padding(6.dp)
-                .background(Color(0x33D8B56A), shape),
+                .padding(5.dp)
+                .background(Brush.verticalGradient(listOf(Color(0x47D8B56A), Color(0x24D8B56A))), pill)
+                .border(1.dp, Brush.verticalGradient(listOf(Color(0xF2E9CC8C), Color(0x66D8B56A))), pill),
         )
         Row(Modifier.fillMaxSize()) {
             tabs.forEachIndexed { i, label ->
-                Box(
+                val on = i == selected
+                val tint by animateColorAsState(if (on) C.brass else C.mist, tween(220), label = "tabTint")
+                Column(
                     Modifier
                         .weight(1f)
                         .fillMaxSize()
-                        .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) { onSelect(i) },
-                    contentAlignment = Alignment.Center,
+                        .pressable(presses[i], tabExplain[i], scaleBy = 0f, haptic = false) { onSelect(i) }
+                        .semantics {
+                            role = Role.Tab
+                            this.selected = on
+                        }
+                        .graphicsLayer {
+                            val k = presses[i].amount()
+                            scaleX = 1f - 0.12f * k
+                            scaleY = 1f - 0.12f * k
+                        },
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center,
                 ) {
+                    AfliIcon(tabIcons[i], tint, Modifier.size(22.dp))
+                    Spacer(Modifier.height(3.dp))
                     Text(
                         label,
-                        style = T.small.copy(color = if (i == selected) C.brass else C.mist),
+                        style = T.small.copy(color = tint, fontSize = 11.sp, lineHeight = 13.sp, fontWeight = if (on) FontWeight.SemiBold else FontWeight.Normal),
                         textAlign = TextAlign.Center,
+                        maxLines = 1,
                     )
                 }
             }

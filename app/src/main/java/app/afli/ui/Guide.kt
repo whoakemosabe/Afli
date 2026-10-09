@@ -21,6 +21,7 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
@@ -40,9 +41,9 @@ import kotlin.math.absoluteValue
 
 /** The in-app manual: one short card per feature, plus the fish. */
 @Composable
-fun GuideScreen(top: Dp) {
+fun GuideScreen(top: Dp, scroll: ScrollState) {
     Column(
-        Modifier.verticalScroll(rememberScrollState()).padding(top = top).padding(horizontal = 16.dp),
+        Modifier.verticalScroll(scroll).padding(top = top).padding(horizontal = 16.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
         guide.forEach { (title, body) ->
@@ -78,11 +79,11 @@ private val guide = listOf(
     "Why chips" to "Under the score, green dots help and red dots hurt. Tap or long-press one to read what it means.",
     "Where you are" to "Afli uses GPS to find your water. Spots you fish at are saved automatically when you start a trip there. Keflavík and Njarðvík harbours, Kleifarvatn and Seltjörn are built in.",
     "Fix spot" to "Point your phone at the water and tap Set, so Afli knows when the wind is onshore or offshore. Say if it's a harbour, open coast or a lake.",
-    "Tides" to "The tide curve comes from a sea model and is only approximate close to the shore. Fish usually feed best while the water is moving, not at the turn.",
+    "Tides" to "The tide curve comes from a sea model and is only approximate close to the shore. Times run along the bottom, with the time of each high and low. Fish usually feed best while the water is moving, not at the turn.",
     "Log every trip" to "Tap Start fishing at the water, tap a fish each time you catch one, and End trip when you leave. Log the empty trips too: they teach Afli when fish don't bite.",
     "Forecast" to "Seven days of hour bars coloured by bite score. Red-tinted bars are Stay home. Tap a bar for that hour. Days far ahead are less certain.",
     "Lakes" to "Lake fishing in Iceland needs a permit (Veiðikortið or the local club) and the landowner's OK. No fishing at night, and the season is about May to September.",
-    "Updates" to "Afli checks for new versions by itself and lets you know. Settings → Updates downloads and installs them.",
+    "Updates" to "Afli checks for new versions by itself. When one is out, a banner shows at the top: tap it to download, tap again to install. Settings → Updates does the same.",
 )
 
 /** First launch: three swipeable glass cards, then the location request. */
@@ -98,7 +99,11 @@ fun Onboarding(onDone: () -> Unit) {
     val scope = rememberCoroutineScope()
     val permission = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { onDone() }
     Column(Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding()) {
-        Text("Afli", style = T.title.copy(color = C.brass), modifier = Modifier.padding(24.dp))
+        Row(Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 16.dp), verticalAlignment = Alignment.CenterVertically) {
+            Text("Afli", style = T.title.copy(color = C.brass), modifier = Modifier.weight(1f))
+            // Skip goes to the location card, not past it: GPS is how Afli finds the water.
+            if (pager.currentPage < pages.size) GlassChip("Skip", onClick = { scope.launch { pager.animateScrollToPage(pages.size) } })
+        }
         HorizontalPager(pager, Modifier.weight(1f)) { i ->
             val off = (pager.currentPage - i + pager.currentPageOffsetFraction).absoluteValue.coerceIn(0f, 1f)
             Box(

@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
@@ -43,7 +44,7 @@ private val dayName = DateTimeFormatter.ofPattern("EEEE d MMM")
  * less sure with time.
  */
 @Composable
-fun ForecastScreen(s: UiState, top: Dp) {
+fun ForecastScreen(s: UiState, top: Dp, scroll: ScrollState) {
     val zone = ZoneId.systemDefault()
     val now = System.currentTimeMillis()
     val days = remember(s.scores) {
@@ -53,7 +54,7 @@ fun ForecastScreen(s: UiState, top: Dp) {
             .entries.take(7)
     }
     Column(
-        Modifier.verticalScroll(rememberScrollState()).padding(top = top).padding(horizontal = 16.dp),
+        Modifier.verticalScroll(scroll).padding(top = top).padding(horizontal = 16.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
         if (days.isEmpty()) {
@@ -105,10 +106,7 @@ private fun DayCard(date: LocalDate, hours: List<HourScore>, fade: Boolean, toda
                     }
                 },
         )
-        Row(Modifier.fillMaxWidth().padding(top = 4.dp), horizontalArrangement = Arrangement.SpaceBetween) {
-            Text(clock(hours.first().t), style = T.small.copy(color = C.faint))
-            Text(clock(hours.last().t), style = T.small.copy(color = C.faint))
-        }
+        HourAxis(hours.map { it.t }, Modifier.fillMaxWidth().padding(top = 4.dp).height(14.dp))
         AnimatedContent(sel, transitionSpec = { fadeIn() togetherWith fadeOut() }, label = "hour") { i ->
             val h = i?.let { hours.getOrNull(it) }
             if (h == null) {

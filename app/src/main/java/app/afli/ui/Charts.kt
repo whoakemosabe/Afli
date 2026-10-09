@@ -213,6 +213,22 @@ fun WindDial(fromDeg: Double, facing: Double?, modifier: Modifier = Modifier) {
     }
 }
 
+/** Hour labels under the forecast bars: every 6 hours (00, 06, 12, 18), centred on their bar. */
+@Composable
+fun HourAxis(times: List<Long>, modifier: Modifier = Modifier) {
+    val measurer = rememberTextMeasurer()
+    Canvas(modifier) {
+        if (times.isEmpty()) return@Canvas
+        val w = size.width / times.size
+        val cal = Calendar.getInstance()
+        times.forEachIndexed { i, t ->
+            cal.timeInMillis = t
+            val h = cal.get(Calendar.HOUR_OF_DAY)
+            if (h % 6 == 0) axisLabel(measurer, "%02d".format(Locale.US, h), i * w + w / 2, 0f, C.faint)
+        }
+    }
+}
+
 /** Hour bars for the forecast strip, coloured by score; faded where it's "Stay home". */
 @Composable
 fun ScoreBars(scores: List<Int>, unsafe: List<Boolean>, selected: Int?, modifier: Modifier = Modifier) {
