@@ -70,8 +70,8 @@ fun Modifier.glassCard(
     backdrop: LayerBackdrop,
     shape: CornerBasedShape = RoundedCornerShape(26.dp),
     press: () -> Float = { 0f },
-    frost: Dp = 12.dp,
-    tint: Color = Color(0x4D06111D),
+    frost: Dp = 10.dp,
+    tint: Color = Color(0x2E06111D),
     glow: Color? = null,
 ): Modifier = drawBackdrop(
     backdrop = backdrop,
@@ -80,9 +80,9 @@ fun Modifier.glassCard(
         colorControls(saturation = 1.25f)
         blur(frost.toPx())
         val p = press()
-        lens((14.dp + 8.dp * p).toPx(), (22.dp + 22.dp * p).toPx(), chromaticAberration = true)
+        lens((20.dp + 10.dp * p).toPx(), (34.dp + 26.dp * p).toPx(), depthEffect = true, chromaticAberration = true)
     },
-    highlight = { Highlight(style = HighlightStyle.Default(angle = 45f)) },
+    highlight = { Highlight(width = 1.dp, style = HighlightStyle.Default(angle = 45f)) },
     // A glow colour turns the shadow into a soft halo, used to make tips stand out.
     shadow = { if (glow != null) Shadow(radius = 28.dp, color = glow.copy(alpha = 0.45f)) else Shadow(radius = 22.dp, color = Color.Black.copy(alpha = 0.28f)) },
     onDrawSurface = {
@@ -104,7 +104,7 @@ fun Modifier.glassControl(
         colorControls(saturation = 1.3f)
         blur(2.dp.toPx())
         val p = press()
-        lens((10.dp + 6.dp * p).toPx(), (18.dp + 18.dp * p).toPx(), chromaticAberration = true)
+        lens((12.dp + 6.dp * p).toPx(), (24.dp + 20.dp * p).toPx(), depthEffect = true, chromaticAberration = true)
     },
     highlight = { Highlight(style = HighlightStyle.Default(angle = 45f)) },
     shadow = { Shadow(radius = 14.dp, color = Color.Black.copy(alpha = 0.22f)) },
@@ -133,14 +133,14 @@ fun Modifier.glassHeader(backdrop: LayerBackdrop, fade: Dp = 28.dp): Modifier = 
     backdrop = backdrop,
     shape = { RoundedCornerShape(0.dp) },
     effects = {
-        colorControls(saturation = 1.15f)
-        blur(8.dp.toPx())
+        colorControls(saturation = 1.2f)
+        blur(18.dp.toPx())
         dissolve(size.height - fade.toPx(), size.height)
     },
     onDrawSurface = {
         val h = size.height
         val k = ((h - fade.toPx()) / h).coerceIn(0f, 1f)
-        val tint = if (glassFull) Color(0x3307121F) else Color(0xCC07121F)
+        val tint = if (glassFull) Color(0x5207121F) else Color(0xCC07121F)
         drawRect(Brush.verticalGradient(0f to tint, k to tint.copy(alpha = tint.alpha * 0.6f), 1f to Color.Transparent))
     },
 )

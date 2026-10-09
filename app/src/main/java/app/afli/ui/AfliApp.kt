@@ -112,68 +112,75 @@ fun AfliApp() {
     // A sharp recording of the page, so a tip's spotlight can show its target unblurred.
     val pageLayer = rememberGraphicsLayer()
 
-    CompositionLocalProvider(LocalBackdrop provides backdrop) {
-        Box(Modifier.fillMaxSize().background(C.navy)) {
+    // Two backdrops: cards in the scroll refract the sea; everything that floats above the
+    // page (header, bottom bar, chips, sheets, tips) refracts the page itself, sea and content
+    // together, so the glass visibly bends and frosts what slides under it.
+    val pageBackdrop = rememberLayerBackdrop()
+
+    Box(Modifier.fillMaxSize().background(C.navy)) {
+        Box(Modifier.fillMaxSize().layerBackdrop(pageBackdrop)) {
             SeaBackground(Modifier.fillMaxSize().layerBackdrop(backdrop), calm)
-
-            if (!onboarded) {
-                Onboarding {
-                    Repo.store().onboarded = true
-                    onboarded = true
-                }
-            } else Box(Modifier.fillMaxSize()) {
-            Box(Modifier.fillMaxSize().blur(blur).backdropSource(pageLayer)) {
-                AnimatedContent(
-                    tab,
-                    transitionSpec = {
-                        (fadeIn(tween(260)) + scaleIn(tween(320), initialScale = 0.985f)) togetherWith
-                            (fadeOut(tween(160)) + scaleOut(tween(200), targetScale = 1.01f))
-                    },
-                    label = "tab",
-                    modifier = Modifier.fillMaxSize().fadeUnderHeader(headerH - 6.dp, headerH + 10.dp),
-                ) { t ->
-                    when (t) {
-                        0 -> NowScreen(
-                            s, contentTop,
-                            onSpot = { Repo.choose(context, it) },
-                            onFixSpot = { sheet = Sheet.FIX_SPOT },
-                            onRetry = { Repo.refresh(context) },
-                            banner = { UpdateCard { sheet = Sheet.SETTINGS } },
-                        )
-                        1 -> ForecastScreen(s, contentTop)
-                        2 -> LogScreen(
-                            s, contentTop,
-                            onStart = { Repo.startTrip(context) },
-                            onCatch = { Repo.addCatch(it) },
-                            onUndo = { Repo.undoCatch() },
-                            onEnd = { Repo.endTrip() },
-                            onDelete = { Repo.deleteTrip(it) },
-                        )
-                        else -> GuideScreen(contentTop)
+            CompositionLocalProvider(LocalBackdrop provides backdrop) {
+                if (!onboarded) {
+                    Onboarding {
+                        Repo.store().onboarded = true
+                        onboarded = true
+                    }
+                } else Box(Modifier.fillMaxSize().blur(blur).backdropSource(pageLayer)) {
+                    AnimatedContent(
+                        tab,
+                        transitionSpec = {
+                            (fadeIn(tween(260)) + scaleIn(tween(320), initialScale = 0.985f)) togetherWith
+                                (fadeOut(tween(160)) + scaleOut(tween(200), targetScale = 1.01f))
+                        },
+                        label = "tab",
+                        modifier = Modifier.fillMaxSize(),
+                    ) { t ->
+                        when (t) {
+                            0 -> NowScreen(
+                                s, contentTop,
+                                onSpot = { Repo.choose(context, it) },
+                                onFixSpot = { sheet = Sheet.FIX_SPOT },
+                                onRetry = { Repo.refresh(context) },
+                                banner = { UpdateCard { sheet = Sheet.SETTINGS } },
+                            )
+                            1 -> ForecastScreen(s, contentTop)
+                            2 -> LogScreen(
+                                s, contentTop,
+                                onStart = { Repo.startTrip(context) },
+                                onCatch = { Repo.addCatch(it) },
+                                onUndo = { Repo.undoCatch() },
+                                onEnd = { Repo.endTrip() },
+                                onDelete = { Repo.deleteTrip(it) },
+                            )
+                            else -> GuideScreen(contentTop)
+                        }
                     }
                 }
+            }
+        }
 
-                // Frosted header band with the title and controls.
-                Box(Modifier.fillMaxWidth().height(headerH + 24.dp).glassHeader(backdrop))
-                Row(
-                    Modifier.fillMaxWidth().statusBarsPadding().height(64.dp).padding(horizontal = 16.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Column(Modifier.weight(1f)) {
-                        Text(tabs[tab], style = T.title)
-                        Text(
-                            when {
-                                s.loading -> "Updating…"
-                                s.forecast != null -> "Updated ${clock(s.forecast!!.fetchedAt)}"
-                                else -> " "
-                            },
-                            style = T.small,
-                        )
-                    }
-                    GlassChip("Refresh", explain = "Finds where you are again and reloads the forecast.", onClick = { Repo.refresh(context) })
-                    androidx.compose.foundation.layout.Spacer(Modifier.width(8.dp))
-                    GlassChip("Settings", explain = "Updates, tips and data credits.", onClick = { sheet = Sheet.SETTINGS })
+        if (onboarded) CompositionLocalProvider(LocalBackdrop provides pageBackdrop) {
+            // Frosted header band: the page scrolls under it and shows through, blurred.
+            Box(Modifier.fillMaxWidth().height(headerH + 24.dp).blur(blur).glassHeader(pageBackdrop))
+            Row(
+                Modifier.fillMaxWidth().blur(blur).statusBarsPadding().height(64.dp).padding(horizontal = 16.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Column(Modifier.weight(1f)) {
+                    Text(tabs[tab], style = T.title)
+                    Text(
+                        when {
+                            s.loading -> "Updating…"
+                            s.forecast != null -> "Updated ${clock(s.forecast!!.fetchedAt)}"
+                            else -> " "
+                        },
+                        style = T.small,
+                    )
                 }
+                GlassChip("Refresh", explain = "Finds where you are again and reloads the forecast.", onClick = { Repo.refresh(context) })
+                androidx.compose.foundation.layout.Spacer(Modifier.width(8.dp))
+                GlassChip("Settings", explain = "Updates, tips and data credits.", onClick = { sheet = Sheet.SETTINGS })
             }
 
             BottomBar(tab, Modifier.align(Alignment.BottomCenter)) {
@@ -198,7 +205,6 @@ fun AfliApp() {
             }
 
             CoachOverlay(pageLayer)
-            }
         }
     }
 }
