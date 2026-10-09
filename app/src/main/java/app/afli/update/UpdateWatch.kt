@@ -1,5 +1,8 @@
 package app.afli.update
 
+import app.afli.loadLang
+import app.afli.t
+
 import android.Manifest
 import android.app.NotificationChannel
 import android.app.NotificationManager
@@ -85,8 +88,8 @@ object UpdateWatch {
     fun createChannel(context: Context) {
         val nm = context.getSystemService(NotificationManager::class.java) ?: return
         nm.createNotificationChannel(
-            NotificationChannel(CH_UPDATE, "Updates", NotificationManager.IMPORTANCE_LOW).apply {
-                description = "When a new version of Afli is ready"
+            NotificationChannel(CH_UPDATE, t("Updates", "Uppfærslur"), NotificationManager.IMPORTANCE_LOW).apply {
+                description = t("When a new version of Afli is ready", "Þegar ný útgáfa af Afla er tilbúin")
             }
         )
     }
@@ -95,6 +98,7 @@ object UpdateWatch {
         if (Build.VERSION.SDK_INT >= 33 &&
             ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
         ) return
+        loadLang(context)
         createChannel(context)
         val open = PendingIntent.getActivity(
             context, 3,
@@ -105,8 +109,8 @@ object UpdateWatch {
         )
         val n = NotificationCompat.Builder(context, CH_UPDATE)
             .setSmallIcon(R.drawable.ic_stat_fish)
-            .setContentTitle("Afli $version is ready")
-            .setContentText("Tap to update.")
+            .setContentTitle(t("Afli $version is ready", "Afli $version er tilbúinn"))
+            .setContentText(t("Tap to update.", "Ýttu til að uppfæra."))
             .setAutoCancel(true)
             .setContentIntent(open)
             .build()

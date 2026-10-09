@@ -31,12 +31,14 @@ import androidx.compose.ui.unit.dp
 import app.afli.data.UiState
 import app.afli.model.HourScore
 import app.afli.model.Safety
+import app.afli.t
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 
-private val dayName = DateTimeFormatter.ofPattern("EEEE d MMM")
 
 /**
  * The week ahead, one card per day. Each bar is an hour, coloured by bite score; red-tinted bars
@@ -44,7 +46,7 @@ private val dayName = DateTimeFormatter.ofPattern("EEEE d MMM")
  * less sure with time.
  */
 @Composable
-fun ForecastScreen(s: UiState, top: Dp, scroll: ScrollState) {
+fun ForecastScreen(s: UiState, top: Dp, scroll: ScrollState, onOpenNow: (Long) -> Unit) {
     val zone = ZoneId.systemDefault()
     val now = System.currentTimeMillis()
     val days = remember(s.scores) {
@@ -59,16 +61,16 @@ fun ForecastScreen(s: UiState, top: Dp, scroll: ScrollState) {
     ) {
         if (days.isEmpty()) {
             GlassCard(Modifier.fillMaxWidth()) {
-                Text("No forecast yet", style = T.title)
-                Text("Open the Now tab to load one.", style = T.small)
+                Text(t("No forecast yet", "Engin spá enn"), style = T.title)
+                Text(t("Open the Now tab to load one.", "Opnaðu Núna til að sækja hana."), style = T.small)
             }
         }
         days.forEachIndexed { i, (date, hours) ->
-            DayCard(date, hours, fade = i >= 3, today = i == 0)
+            DayCard(date, hours, fade = i >= 3, today = i == 0, nowLimit = s.scores.getOrNull(s.nowIndex)?.t?.plus(47 * 3_600_000L), onOpenNow = onOpenNow)
         }
         if (days.size > 3) {
             Text(
-                "Days 4–7 are less certain, so treat them as a rough guide.",
+                t("Days 4–7 are less certain, so treat them as a rough guide.", "Dagar 4–7 eru óvissari, svo taktu þeim sem grófri leiðbeiningu."),
                 style = T.small.copy(color = C.faint),
                 modifier = Modifier.padding(horizontal = 6.dp),
             )
@@ -78,17 +80,17 @@ fun ForecastScreen(s: UiState, top: Dp, scroll: ScrollState) {
 }
 
 @Composable
-private fun DayCard(date: LocalDate, hours: List<HourScore>, fade: Boolean, today: Boolean) {
+private fun DayCard(date: LocalDate, hours: List<HourScore>, fade: Boolean, today: Boolean, nowLimit: Long?, onOpenNow: (Long) -> Unit) {
     var sel by remember(hours) { mutableStateOf<Int?>(null) }
     val view = LocalView.current
     val best = hours.maxByOrNull { if (it.safety == Safety.STAY_HOME) -1 else it.score }
     GlassCard(Modifier.fillMaxWidth().alpha(if (fade) 0.85f else 1f)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
-                Text(if (today) "Today" else dayName.format(date), style = T.heading)
-                best?.let { Text("Best ${clock(it.t)} · ${it.score}", style = T.small) }
+                Text(if (today) t("Today", "Í dag") else longDay(date), style = T.heading)
+                best?.let { Text(t("Best ", "Best ") + "${clock(it.t)} · ${it.score}", style = T.small) }
             }
-            if (hours.any { it.safety == Safety.STAY_HOME }) Text("Stay home at times", style = T.small.copy(color = C.bad))
+            if (hours.any { it.safety == Safety.STAY_HOME }) Text(t("Stay home at times", "Vertu heima á köflum"), style = T.small.copy(color = C.bad))
         }
         Spacer(Modifier.height(12.dp))
         ScoreBars(
@@ -110,7 +112,7 @@ private fun DayCard(date: LocalDate, hours: List<HourScore>, fade: Boolean, toda
         AnimatedContent(sel, transitionSpec = { fadeIn() togetherWith fadeOut() }, label = "hour") { i ->
             val h = i?.let { hours.getOrNull(it) }
             if (h == null) {
-                Text("Tap a bar to see that hour.", style = T.small.copy(color = C.faint), modifier = Modifier.padding(top = 8.dp))
+                Text(t("Tap a bar to see that hour.", "Ýttu á súlu til að sjá þann tíma."), style = T.small.copy(color = C.faint), modifier = Modifier.padding(top = 8.dp))
             } else {
                 Column(Modifier.padding(top = 10.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
@@ -120,8 +122,15 @@ private fun DayCard(date: LocalDate, hours: List<HourScore>, fade: Boolean, toda
                         Dot(C.safety(h.safety))
                         Text("  ${h.safety.label}", style = T.small)
                     }
-                    h.best?.let { Text("Best bet: ${it.en} (${it.icelandic})", style = T.small) }
+                    h.best?.let { Text(t("Best bet: ", "Best að reyna: ") + "${it.name} (${it.other})", style = T.small) }
                     Text(h.reasons.take(3).joinToString(" · ") { it.label }, style = T.small)
+                    if (nowLimit != null && h.t <= nowLimit) {
+                        Text(
+                            t("See this hour in Now  ›", "Sjá þennan tíma í Núna  ›"),
+                            style = T.small.copy(color = C.brass),
+                            modifier = Modifier.clickable(remember { MutableInteractionSource() }, null) { onOpenNow(h.t) }.padding(top = 2.dp),
+                        )
+                    }
                 }
             }
         }

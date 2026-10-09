@@ -97,4 +97,49 @@ class ModelTest {
         assertTrue(inside.isNotEmpty() && inside.none { it.safety == Safety.STAY_HOME })
         assertTrue(Bite.entries.isNotEmpty())
     }
+
+    @Test fun tideTurnsLandBetweenHours() {
+        // A 12.42 h sine starting at zero peaks at 3.105 h, then every 12.42 h.
+        val start = ms(2026, 8, 10, 0)
+        val turns = Model.tideTurns(series(48, start))
+        assertTrue(turns.size >= 3)
+        assertTrue(turns.first().high)
+        assertEquals(3.105, (turns.first().t - start) / 3_600_000.0, 0.25)
+        assertTrue(turns.zipWithNext().all { (a, b) -> a.high != b.high })
+        assertEquals(true, Model.tideRising(series(48, start), 1))
+        assertEquals(false, Model.tideRising(series(48, start), 5))
+    }
+
+    @Test fun sunriseAndSunsetInKeflavik() {
+        val utc = java.time.ZoneOffset.UTC
+        val june = Astro.sunDay(ms(2026, 6, 21, 12), 64.0035, -22.556, utc)
+        assertTrue(june.rise != null && june.set != null)
+        assertTrue((june.set!! - june.rise!!) / 3_600_000.0 > 20.0)
+        val dec = Astro.sunDay(ms(2026, 12, 21, 12), 64.0035, -22.556, utc)
+        val len = (dec.set!! - dec.rise!!) / 3_600_000.0
+        assertTrue("December day $len h", len in 3.5..4.7)
+        // The December sun never climbs past 8°, so the whole short day is one long dawn-dusk.
+        assertEquals(1, dec.lowLight.size)
+    }
+
+    @Test fun windChill() {
+        assertEquals(-13.7, Model.feelsLike(-5.0, 10.0), 0.5)
+        assertEquals(15.0, Model.feelsLike(15.0, 10.0), 1e-9)
+    }
+
+    @Test fun icelandicText() {
+        try {
+            L.lang = Lang.IS
+            assertEquals("Frábært", Bite.GREAT.label)
+            assertEquals("Vertu heima", Safety.STAY_HOME.label)
+            assertEquals("9,3", num(9.3, 1))
+            assertEquals("Ufsi", Fish.byId("ufsi")!!.name)
+            L.lang = Lang.EN
+            assertEquals("9.3", num(9.3, 1))
+            assertEquals("0", num(-0.2))
+            assertEquals("Saithe", Fish.byId("ufsi")!!.name)
+        } finally {
+            L.lang = Lang.EN
+        }
+    }
 }

@@ -2,15 +2,16 @@
 
 Will they bite? A native Android app for shore fishing on the Reykjanes peninsula that scores the water you're standing at, from the tide, light, wind, pressure and sea temperature, and says separately whether it's safe to go.
 
-Liquid glass over an animated sea (Kyant's Backdrop 2.0 lens and frost on Android 13+), with springy press effects, fades between screens, a blur behind sheets (drag them down to close), and haptics.
+Liquid glass over an animated sea (Kyant's Backdrop 2.0 lens and frost on Android 13+), with springy press effects that squish the glass itself, crisp rims on the floating bar and buttons, fades between screens, a blur behind sheets (drag them down to close), and haptics, including a tick for each hour on the time strip.
 
-- **Now**: a bite score from 0 to 100 (Great, OK or Slow), the best fish to try for, and a separate **Safe / Careful / Stay home** pill. "Why" chips underneath say what's helping and hurting. Also the next best window in the next two days, a tide curve that draws itself in (times along the bottom, and the time of each high and low), a wind compass and the current conditions.
-- **Forecast**: seven days of hour bars coloured by bite score, with Stay home hours tinted red. Tap a bar for that hour.
+- **Now**: one card answers "should I go, for what, when, with what": a score ring from 0 to 100 (Great, OK or Slow), the three fish most likely to bite with a chance bar each, whether the tide is rising or falling and when it next turns, the best stretch in the next two days, and what bait or lure to use for the top fish. A separate **Safe / Careful / Stay home** pill sits beside it. Drag the time strip under the score to see any hour in the next 48 and the whole screen follows; tap Best to jump there. "Why" chips say what's helping and hurting. Conditions are tiles (wind, tide, sea, pressure, light, air) that open into charts: tide curve with high and low times, wind dial, sea temperature over the week, pressure from yesterday to tomorrow, the sun's path with the dawn and dusk windows, temperature with wind chill and rain. A row of fish cards shows every fish's best hour, whether the water suits it, and what to fish with. Pull down to reload; the score shrinks into the header as you scroll.
+- **Forecast**: seven days of hour bars coloured by bite score, with Stay home hours tinted red and times underneath. Tap a bar for that hour, then See in Now to open it on the time strip.
 - **Log**: Start fishing where you stand, tap a fish each time you catch one, End trip. Empty trips count. Each trip saves the conditions it started in.
 - **Spots by GPS**: no location chooser. Afli shows the saved spot you're standing at (within 300 m), otherwise where you are. Starting a trip somewhere new saves that place as a spot. Keflavík harbour, Njarðvík harbour, Kleifarvatn and Seltjörn are built in.
 - **Fix spot**: point the phone at the water to set which way it faces (so onshore and offshore wind count right), and mark it as harbour, open coast or lake.
 - **Help built in**: a three-card intro, a short coach-mark tour the first time you open Now and Log, and long-press on almost anything for a one-line explanation. A Guide tab explains every feature and every fish.
-- **Fish**: saithe, cod, mackerel, shorthorn sculpin, haddock, plaice and Atlantic wolffish at sea; Arctic char and brown trout in lakes.
+- **Fish**: saithe, cod, mackerel, shorthorn sculpin, haddock, plaice and Atlantic wolffish at sea; Arctic char and brown trout in lakes. Each has a bait or lure tip.
+- **English or Icelandic**: switch in Settings (or on the first intro screen). Everything changes at once, including days, compass points and decimal commas; fish names always show in both.
 
 No server, no account. Trips and spots stay on the phone.
 
@@ -40,7 +41,8 @@ The score is a guide, not a promise. Tides come from a sea model and are approxi
 | Open-Meteo Marine API (DWD and Météo-France models) | Wave height, sea surface temperature and sea level including tides |
 | Veðurstofa Íslands, `api.vedur.is/weather` (CC BY 4.0) | Latest 10-minute wind, gusts and pressure from the nearest station, in Iceland only |
 | Wikipedia and Hafrannsóknastofnun | The fish facts and temperature ranges, built into the app |
-| On-device sun and moon maths | Light and spring/neap tides |
+| British Sea Fishing, shore anglers' reports from Iceland, Vísir | Bait and lure tips for each fish, built into the app |
+| On-device sun and moon maths | Light, sunrise and sunset, dawn and dusk windows, spring and neap tides |
 | The phone's GPS and compass | Where you are and which way the water faces |
 
 Every build runs a live check against these feeds for Keflavík harbour and puts the result in the release notes.

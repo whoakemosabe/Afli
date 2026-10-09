@@ -55,4 +55,58 @@ object Astro {
         val p = moonPhase(epochMs - (1.5 * DAY_MS).toLong())
         return (1 + cos(4 * PI * p)) / 2
     }
+
+    /**
+     * Sunrise and sunset on the local day containing [anyMs], and the stretches when the sun is
+     * between 6° below and 8° above the horizon: the low light the score likes. Found by
+     * stepping through the day two minutes at a time, so times are good to about a minute.
+     */
+    fun sunDay(anyMs: Long, lat: Double, lon: Double, zone: java.time.ZoneId = java.time.ZoneId.systemDefault()): SunDay {
+        val start = java.time.Instant.ofEpochMilli(anyMs).atZone(zone).toLocalDate().atStartOfDay(zone).toInstant().toEpochMilli()
+        val end = start + DAY_MS.toLong()
+        val step = 120_000L
+        var rise: Long? = null
+        var set: Long? = null
+        val low = mutableListOf<Pair<Long, Long>>()
+        var lowFrom: Long? = null
+        var prevT = start
+        var prev = sunElevation(start, lat, lon)
+        var everUp = prev > HORIZON
+        var everDown = prev <= HORIZON
+        if (prev in -6.0..8.0) lowFrom = start
+        var t = start + step
+        while (t <= end) {
+            val e = sunElevation(t, lat, lon)
+            fun cross(level: Double): Long = prevT + ((level - prev) / (e - prev) * (t - prevT)).toLong()
+            if (prev <= HORIZON && e > HORIZON && rise == null) rise = cross(HORIZON)
+            if (prev > HORIZON && e <= HORIZON) set = cross(HORIZON)
+            val wasLow = prev in -6.0..8.0
+            val isLow = e in -6.0..8.0
+            if (!wasLow && isLow) lowFrom = cross(if (e < prev) 8.0 else -6.0)
+            if (wasLow && !isLow) {
+                low += (lowFrom ?: start) to cross(if (e > prev) 8.0 else -6.0)
+                lowFrom = null
+            }
+            if (e > HORIZON) everUp = true else everDown = true
+            prev = e
+            prevT = t
+            t += step
+        }
+        lowFrom?.let { low += it to end }
+        return SunDay(rise, set, allDay = !everDown, never = !everUp, lowLight = low)
+    }
+
+    /** The sun's centre is 0.833° below the horizon at sunrise (refraction plus its radius). */
+    private const val HORIZON = -0.833
 }
+
+data class SunDay(
+    val rise: Long?,
+    val set: Long?,
+    /** The sun never sets (midsummer far north). */
+    val allDay: Boolean,
+    /** The sun never rises. */
+    val never: Boolean,
+    /** Dawn and dusk stretches, sun between −6° and 8°. */
+    val lowLight: List<Pair<Long, Long>>,
+)

@@ -26,9 +26,8 @@ import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import app.afli.model.Hour
-import java.text.SimpleDateFormat
+import app.afli.t
 import java.util.Calendar
-import java.util.Date
 import java.util.Locale
 import kotlin.math.cos
 import kotlin.math.sin
@@ -40,7 +39,7 @@ import kotlin.math.sin
  * hourly points by fitting a curve through the three around each turn.
  */
 @Composable
-fun TideCurve(hours: List<Hour>, now: Long, modifier: Modifier = Modifier, key: Any? = null) {
+fun TideCurve(hours: List<Hour>, now: Long, modifier: Modifier = Modifier, key: Any? = null, markerLabel: String = t("Now", "Núna")) {
     val pts = remember(hours, now) {
         hours.filter { it.t in (now - 6 * 3_600_000L)..(now + 24 * 3_600_000L) && !it.seaLevel.isNaN() }
     }
@@ -97,7 +96,7 @@ fun TideCurve(hours: List<Hour>, now: Long, modifier: Modifier = Modifier, key: 
                 Offset(px, top - 6.dp.toPx()), Offset(px, axis), 1.dp.toPx(),
             )
             drawLine(C.mist.copy(alpha = 0.5f), Offset(px, axis), Offset(px, axis + 3.dp.toPx()), 1.dp.toPx())
-            val text = if (midnight) DayName.format(cal.time) else "%02d".format(Locale.US, h)
+            val text = if (midnight) shortDay(cal.timeInMillis) else "%02d".format(Locale.US, h)
             if (kotlin.math.abs(px - nx) > gap) axisLabel(measurer, text, px, axis + 4.dp.toPx(), if (midnight) C.foam else C.faint)
             cal.add(Calendar.HOUR_OF_DAY, 3)
         }
@@ -121,7 +120,7 @@ fun TideCurve(hours: List<Hour>, now: Long, modifier: Modifier = Modifier, key: 
             val px = x(at)
             if (px > size.width * draw.value) continue
             drawCircle(C.foam.copy(alpha = 0.8f), 2.5.dp.toPx(), Offset(px, y(b)))
-            val text = (if (isHigh) "High " else "Low ") + Clock.format(Date(roundTo10(at)))
+            val text = (if (isHigh) t("High ", "Flóð ") else t("Low ", "Fjara ")) + clock(roundTo10(at))
             label(measurer, text, Offset(px, if (isHigh) y(b) - 18.dp.toPx() else y(b) + 5.dp.toPx()))
         }
         if (nx in 0f..size.width) {
@@ -129,13 +128,11 @@ fun TideCurve(hours: List<Hour>, now: Long, modifier: Modifier = Modifier, key: 
             val ny = pts.minByOrNull { kotlin.math.abs(it.t - now) }?.let { y(it.seaLevel) } ?: bottom
             drawCircle(C.brass, 5.dp.toPx(), Offset(nx, ny))
             drawCircle(C.navy, 2.dp.toPx(), Offset(nx, ny))
-            axisLabel(measurer, "Now", nx, axis + 4.dp.toPx(), C.brass)
+            axisLabel(measurer, markerLabel, nx, axis + 4.dp.toPx(), C.brass)
         }
     }
 }
 
-private val Clock = SimpleDateFormat("HH:mm", Locale.UK)
-private val DayName = SimpleDateFormat("EEE", Locale.UK)
 private fun roundTo10(t: Long): Long { val step = 600_000L; return (t + step / 2) / step * step }
 
 private fun androidx.compose.ui.graphics.drawscope.DrawScope.axisLabel(m: TextMeasurer, text: String, x: Float, y: Float, color: Color) {
@@ -178,7 +175,7 @@ fun WindDial(fromDeg: Double, facing: Double?, modifier: Modifier = Modifier) {
                 1.dp.toPx(),
             )
         }
-        listOf("N" to 0.0, "E" to 90.0, "S" to 180.0, "W" to 270.0).forEach { (s, d) ->
+        listOf("N" to 0.0, t("E", "A") to 90.0, "S" to 180.0, t("W", "V") to 270.0).forEach { (s, d) ->
             val a = Math.toRadians(d)
             val rr = r - 22.dp.toPx()
             val res = measurer.measure(s, T.small.copy(color = C.mist))
@@ -246,6 +243,185 @@ fun ScoreBars(scores: List<Int>, unsafe: List<Boolean>, selected: Int?, modifier
                 size = androidx.compose.ui.geometry.Size(w * 0.64f, h),
                 cornerRadius = androidx.compose.ui.geometry.CornerRadius(w * 0.32f),
             )
+        }
+    }
+}
+
+/** A thin rounded bar filled to [fraction], for chances and progress. */
+@Composable
+fun Bar(fraction: Float, color: Color, modifier: Modifier = Modifier) {
+    val f by animateFloatAsState(fraction.coerceIn(0f, 1f), spring(dampingRatio = 0.85f, stiffness = Spring.StiffnessLow), label = "bar")
+    Canvas(modifier) {
+        val r = androidx.compose.ui.geometry.CornerRadius(size.height / 2)
+        drawRoundRect(C.line, cornerRadius = r)
+        if (f > 0.005f) drawRoundRect(color, size = androidx.compose.ui.geometry.Size(maxOf(size.height, size.width * f), size.height), cornerRadius = r)
+    }
+}
+
+/**
+ * A small line chart: [values] left to right (NaN gaps skipped), shaded underneath, with an
+ * optional brass marker at index [marker]. [bars] draws columns instead (rain). [floor] keeps
+ * the scale from zooming into tiny changes.
+ */
+@Composable
+fun Sparkline(
+    values: List<Double>,
+    modifier: Modifier = Modifier,
+    color: Color = C.sea,
+    marker: Int? = null,
+    bars: Boolean = false,
+    floor: Double = 0.0,
+    zeroBased: Boolean = false,
+) {
+    val grow = remember(values.size) { Animatable(0f) }
+    LaunchedEffect(values.size) { grow.animateTo(1f, tween(700, easing = FastOutSlowInEasing)) }
+    Canvas(modifier) {
+        val ok = values.filter { !it.isNaN() }
+        if (ok.size < 2) return@Canvas
+        var lo = if (zeroBased) 0.0 else ok.min()
+        var hi = ok.max()
+        if (hi - lo < floor) {
+            val mid = (hi + lo) / 2
+            lo = if (zeroBased) 0.0 else mid - floor / 2
+            hi = lo + floor
+        }
+        val span = (hi - lo).takeIf { it > 0 } ?: 1.0
+        val pad = 3.dp.toPx()
+        val w = size.width
+        val hgt = size.height - pad * 2
+        fun x(i: Int) = if (bars) (i + 0.5f) * w / values.size else i * w / (values.size - 1).coerceAtLeast(1)
+        fun y(v: Double) = pad + hgt - ((v - lo) / span).toFloat() * hgt
+        clipRect(right = size.width * grow.value) {
+            if (bars) {
+                val bw = w / values.size * 0.6f
+                values.forEachIndexed { i, v ->
+                    if (v.isNaN() || v <= 0) return@forEachIndexed
+                    drawRoundRect(color.copy(alpha = 0.85f), topLeft = Offset(x(i) - bw / 2, y(v)), size = androidx.compose.ui.geometry.Size(bw, size.height - pad - y(v)), cornerRadius = androidx.compose.ui.geometry.CornerRadius(bw / 3))
+                }
+            } else {
+                val line = Path()
+                var started = false
+                values.forEachIndexed { i, v ->
+                    if (v.isNaN()) return@forEachIndexed
+                    if (!started) { line.moveTo(x(i), y(v)); started = true } else line.lineTo(x(i), y(v))
+                }
+                val first = values.indexOfFirst { !it.isNaN() }
+                val last = values.indexOfLast { !it.isNaN() }
+                val fill = Path().apply {
+                    addPath(line)
+                    lineTo(x(last), size.height)
+                    lineTo(x(first), size.height)
+                    close()
+                }
+                drawPath(fill, Brush.verticalGradient(listOf(color.copy(alpha = 0.32f), color.copy(alpha = 0f))))
+                drawPath(line, color, style = Stroke(2.dp.toPx(), cap = StrokeCap.Round, join = androidx.compose.ui.graphics.StrokeJoin.Round))
+            }
+        }
+        if (marker != null && marker in values.indices) {
+            val mx = x(marker)
+            drawLine(C.brass.copy(alpha = 0.6f), Offset(mx, 0f), Offset(mx, size.height), 1.2.dp.toPx())
+            val v = values[marker]
+            if (!v.isNaN() && !bars) {
+                drawCircle(C.brass, 3.5.dp.toPx(), Offset(mx, y(v)))
+                drawCircle(C.navy, 1.4.dp.toPx(), Offset(mx, y(v)))
+            }
+        }
+    }
+}
+
+/** A tiny compass for a tile: a ring and an arrow showing where the wind blows to. */
+@Composable
+fun MiniWind(fromDeg: Double, modifier: Modifier = Modifier) {
+    val target = if (fromDeg.isNaN()) 0f else fromDeg.toFloat()
+    val angle by animateFloatAsState(target, spring(dampingRatio = 0.6f, stiffness = Spring.StiffnessLow), label = "miniWind")
+    Canvas(modifier) {
+        val r = size.minDimension / 2f - 2.dp.toPx()
+        drawCircle(C.line, r, center, style = Stroke(1.5.dp.toPx()))
+        drawCircle(C.mist.copy(alpha = 0.5f), 1.5.dp.toPx(), Offset(center.x, center.y - r))
+        if (fromDeg.isNaN()) return@Canvas
+        rotate(angle, center) {
+            val tail = Offset(center.x, center.y - r * 0.62f)
+            val head = Offset(center.x, center.y + r * 0.62f)
+            drawLine(C.foam, tail, head, 2.dp.toPx(), cap = StrokeCap.Round)
+            drawPath(Path().apply {
+                moveTo(head.x, head.y + 4.dp.toPx())
+                lineTo(head.x - 4.dp.toPx(), head.y - 3.dp.toPx())
+                lineTo(head.x + 4.dp.toPx(), head.y - 3.dp.toPx())
+                close()
+            }, C.foam)
+            drawCircle(C.brass, 2.5.dp.toPx(), tail)
+        }
+    }
+}
+
+/** Two rolling wave lines, taller for bigger waves. */
+@Composable
+fun WaveGlyph(waveM: Double, modifier: Modifier = Modifier) {
+    val amp = if (waveM.isNaN()) 0.3f else (0.2f + waveM.toFloat() / 4f).coerceIn(0.2f, 1f)
+    Canvas(modifier) {
+        listOf(0.42f to C.sea, 0.7f to C.sea.copy(alpha = 0.55f)).forEach { (yf, col) ->
+            val p = Path()
+            val steps = 24
+            for (i in 0..steps) {
+                val x = i / steps.toFloat() * size.width
+                val y = size.height * yf + sin(i / steps.toDouble() * 2 * Math.PI * 1.5).toFloat() * size.height * 0.16f * amp
+                if (i == 0) p.moveTo(x, y) else p.lineTo(x, y)
+            }
+            drawPath(p, col, style = Stroke(2.dp.toPx(), cap = StrokeCap.Round))
+        }
+    }
+}
+
+/** The horizon with the sun at its height: above the line by day, dimmed below at night. */
+@Composable
+fun SunGlyph(elevation: Double, modifier: Modifier = Modifier) {
+    Canvas(modifier) {
+        val horizon = size.height * 0.62f
+        drawLine(C.mist.copy(alpha = 0.6f), Offset(0f, horizon), Offset(size.width, horizon), 1.5.dp.toPx(), cap = StrokeCap.Round)
+        val e = elevation.toFloat().coerceIn(-20f, 40f)
+        val y = horizon - e / 40f * horizon * 0.95f
+        val up = elevation > -0.833
+        val c = Offset(size.width / 2, y)
+        if (up) drawCircle(C.brass.copy(alpha = 0.25f), 9.dp.toPx(), c)
+        drawCircle(if (up) C.brass else C.mist.copy(alpha = 0.35f), 5.dp.toPx(), c)
+    }
+}
+
+/**
+ * The sun's height through one day: shaded brass where the light is low enough for fishing
+ * (−6° to 8°), the horizon line, sunrise and sunset labelled, and a marker at [marker].
+ */
+@Composable
+fun SunCurve(dayStart: Long, lat: Double, lon: Double, marker: Long, modifier: Modifier = Modifier) {
+    val measurer = rememberTextMeasurer()
+    val pts = remember(dayStart, lat, lon) {
+        (0..144).map { i -> val tt = dayStart + i * 600_000L; tt to app.afli.model.Astro.sunElevation(tt, lat, lon) }
+    }
+    val day = remember(dayStart, lat, lon) { app.afli.model.Astro.sunDay(dayStart + 3_600_000L, lat, lon) }
+    Canvas(modifier) {
+        val axis = size.height - 16.dp.toPx()
+        val lo = minOf(-20.0, pts.minOf { it.second })
+        val hi = maxOf(20.0, pts.maxOf { it.second })
+        fun x(tt: Long) = (tt - dayStart) / 86_400_000f * size.width
+        fun y(e: Double) = (axis - (e - lo) / (hi - lo) * axis).toFloat()
+        // Low-light bands.
+        day.lowLight.forEach { (a, b) ->
+            drawRect(C.brass.copy(alpha = 0.16f), topLeft = Offset(x(a), 0f), size = androidx.compose.ui.geometry.Size(x(b) - x(a), axis))
+        }
+        drawLine(C.mist.copy(alpha = 0.4f), Offset(0f, y(0.0)), Offset(size.width, y(0.0)), 1.dp.toPx())
+        val line = Path()
+        pts.forEachIndexed { i, (tt, e) -> if (i == 0) line.moveTo(x(tt), y(e)) else line.lineTo(x(tt), y(e)) }
+        drawPath(line, C.brass, style = Stroke(2.dp.toPx(), cap = StrokeCap.Round))
+        for (h in listOf(0, 6, 12, 18)) {
+            axisLabel(measurer, "%02d".format(Locale.US, h), x(dayStart + h * 3_600_000L) + if (h == 0) 8.dp.toPx() else 0f, axis + 3.dp.toPx(), C.faint)
+        }
+        day.rise?.let { label(measurer, "↑ " + clock(it), Offset(x(it), y(0.0) + 4.dp.toPx())) }
+        day.set?.let { label(measurer, "↓ " + clock(it), Offset(x(it), y(0.0) + 4.dp.toPx())) }
+        val mx = x(marker)
+        if (mx in 0f..size.width) {
+            drawLine(C.foam.copy(alpha = 0.7f), Offset(mx, 0f), Offset(mx, axis), 1.2.dp.toPx())
+            val e = app.afli.model.Astro.sunElevation(marker, lat, lon)
+            drawCircle(C.foam, 4.dp.toPx(), Offset(mx, y(e)))
         }
     }
 }

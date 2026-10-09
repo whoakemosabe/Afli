@@ -1,5 +1,7 @@
 package app.afli.update
 
+import app.afli.t
+
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
@@ -51,11 +53,11 @@ object Updater {
             val code = c.responseCode
             if (code == 403 || code == 429) {
                 c.disconnect()
-                return@withContext Check.Failed("GitHub is busy. Try again in a bit.")
+                return@withContext Check.Failed(t("GitHub is busy. Try again in a bit.", "GitHub er upptekið. Reyndu aftur eftir smá stund."))
             }
             if (code == 404) {
                 c.disconnect()
-                return@withContext Check.Failed("No releases yet.")
+                return@withContext Check.Failed(t("No releases yet.", "Engar útgáfur enn."))
             }
             if (code !in 200..299) throw IOException("GitHub returned $code")
             val json = JSONObject(c.inputStream.bufferedReader().use { it.readText() })
@@ -67,11 +69,11 @@ object Updater {
                 val a = assets.getJSONObject(i)
                 if (a.optString("name").endsWith(".apk")) asset = a
             }
-            val apk = asset ?: return@withContext Check.Failed("Latest release has no APK yet.")
+            val apk = asset ?: return@withContext Check.Failed(t("Latest release has no APK yet.", "Nýjasta útgáfan er ekki með APK enn."))
             if (!isNewer(tag, installedVersion(context))) return@withContext Check.UpToDate
             Check.Available(Release(tag.removePrefix("v"), apk.getString("url"), apk.optLong("size")))
         } catch (e: Exception) {
-            Check.Failed("Couldn't reach GitHub.")
+            Check.Failed(t("Couldn't reach GitHub.", "Náði ekki sambandi við GitHub."))
         }
     }
 

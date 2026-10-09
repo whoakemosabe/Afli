@@ -35,6 +35,7 @@ import app.afli.data.Trip
 import app.afli.data.UiState
 import app.afli.model.Fish
 import app.afli.model.Water
+import app.afli.t
 import kotlinx.coroutines.delay
 
 /**
@@ -49,7 +50,7 @@ fun LogScreen(s: UiState, top: Dp, scroll: ScrollState, onStart: () -> Unit, onC
         Tips.maybeTour(
             "log",
             listOf(
-                Tips.Step("start", "Log every trip", "Tap Start fishing when you get to the water. Log empty trips too; that's how Afli learns what works."),
+                Tips.Step("start", t("Log every trip", "Skráðu hverja ferð"), t("Tap Start fishing when you get to the water. Log empty trips too; that's how Afli learns what works.", "Ýttu á Byrja að veiða þegar þú kemur að vatninu. Skráðu líka ferðir þar sem ekkert veiddist; þannig lærir Afli hvað virkar.")),
             ),
         )
     }
@@ -65,18 +66,18 @@ fun LogScreen(s: UiState, top: Dp, scroll: ScrollState, onStart: () -> Unit, onC
         ) { trip ->
             if (trip == null) {
                 GlassCard(Modifier.fillMaxWidth().coachTarget("start")) {
-                    Text("Going fishing?", style = T.title)
+                    Text(t("Going fishing?", "Á leið að veiða?"), style = T.title)
                     Spacer(Modifier.height(4.dp))
                     Text(
-                        s.spot?.let { "Start a trip at ${it.name}. Afli saves the conditions so it can learn." }
-                            ?: "Start a trip where you're standing.",
+                        s.spot?.let { t("Start a trip at ${it.label}. Afli saves the conditions so it can learn.", "Byrjaðu ferð við ${it.label}. Afli vistar aðstæðurnar svo hann geti lært.") }
+                            ?: t("Start a trip where you're standing.", "Byrjaðu ferð þar sem þú stendur."),
                         style = T.small,
                     )
                     Spacer(Modifier.height(14.dp))
                     GlassButton(
-                        "Start fishing",
+                        t("Start fishing", "Byrja að veiða"),
                         accent = C.brass,
-                        explain = "Starts a trip at your GPS position and saves the tide, wind, pressure and sea temperature right now.",
+                        explain = t("Starts a trip at your GPS position and saves the tide, wind, pressure and sea temperature right now.", "Byrjar ferð þar sem GPS segir að þú sért og vistar sjávarföll, vind, loftþrýsting og sjávarhita eins og þau eru núna."),
                         onClick = {
                             Haptics.confirm(view)
                             onStart()
@@ -90,12 +91,12 @@ fun LogScreen(s: UiState, top: Dp, scroll: ScrollState, onStart: () -> Unit, onC
 
         val past = s.trips.filter { it.end != null }
         if (past.isNotEmpty()) {
-            SectionLabel("Your trips")
+            SectionLabel(t("Your trips", "Ferðirnar þínar"))
             past.forEach { TripCard(it, onDelete) }
         } else if (s.activeTrip == null) {
             GlassCard(Modifier.fillMaxWidth()) {
-                Text("No trips yet", style = T.heading)
-                Text("Go to the harbour and tap Start fishing. After 20 or so trips, Afli starts to learn your spots.", style = T.small)
+                Text(t("No trips yet", "Engar ferðir enn"), style = T.heading)
+                Text(t("Go to the harbour and tap Start fishing. After 20 or so trips, Afli starts to learn your spots.", "Farðu niður á bryggju og ýttu á Byrja að veiða. Eftir um 20 ferðir fer Afli að læra á staðina þína."), style = T.small)
             }
         }
         BottomBarSpace()
@@ -115,18 +116,18 @@ private fun ActiveTrip(trip: Trip, water: Water, onCatch: (String) -> Unit, onUn
     }
     val mins = ((now - trip.start) / 60_000).toInt()
     GlassCard(Modifier.fillMaxWidth()) {
-        Text("Fishing at ${trip.spotName}", style = T.small)
-        Text(if (mins < 60) "$mins min" else "${mins / 60} h ${mins % 60} min", style = T.hero.copy(fontSize = T.title.fontSize * 2))
-        Text("${trip.catches.size} caught", style = T.title.copy(color = if (trip.catches.isEmpty()) C.mist else C.good))
+        Text(t("Fishing at ", "Að veiða við ") + spotLabel(trip.spotId, trip.spotName), style = T.small)
+        Text(duration(mins), style = T.hero.copy(fontSize = T.title.fontSize * 2))
+        Text(t("${trip.catches.size} caught", if (trip.catches.size == 1) "1 veiddur" else "${trip.catches.size} veiddir"), style = T.title.copy(color = if (trip.catches.isEmpty()) C.mist else C.good))
         Spacer(Modifier.height(14.dp))
-        SectionLabel("Caught one? Tap the fish")
+        SectionLabel(t("Caught one? Tap the fish", "Veiddirðu? Ýttu á fiskinn"))
         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Fish.forWater(water).forEach { f ->
                 val n = trip.catches.count { it.species == f.id }
                 GlassChip(
-                    text = if (n > 0) "${f.en} ×$n" else f.en,
+                    text = if (n > 0) "${f.name} ×$n" else f.name,
                     selected = n > 0,
-                    explain = "${f.en} (${f.icelandic}). ${f.fact}",
+                    explain = "${f.name} (${f.other}). ${f.fact}",
                     onClick = {
                         Haptics.confirm(view)
                         onCatch(f.id)
@@ -136,38 +137,38 @@ private fun ActiveTrip(trip: Trip, water: Water, onCatch: (String) -> Unit, onUn
         }
         Spacer(Modifier.height(14.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
-            GlassButton("End trip", accent = C.brass, onClick = {
+            GlassButton(t("End trip", "Ljúka ferð"), accent = C.brass, onClick = {
                 Haptics.confirm(view)
                 onEnd()
             })
-            if (trip.catches.isNotEmpty()) GlassButton("Undo last", style = T.small, onClick = onUndo)
+            if (trip.catches.isNotEmpty()) GlassButton(t("Undo last", "Afturkalla"), style = T.small, onClick = onUndo)
         }
     }
 }
 
 @Composable
-private fun TripCard(t: Trip, onDelete: (String) -> Unit) {
-    var confirm by remember(t.id) { mutableStateOf(false) }
-    val mins = (((t.end ?: t.start) - t.start) / 60_000).toInt()
-    GlassCard(Modifier.fillMaxWidth(), explain = "Long-press shows this. Tap to delete the trip.", onClick = { confirm = !confirm }) {
+private fun TripCard(trip: Trip, onDelete: (String) -> Unit) {
+    var confirm by remember(trip.id) { mutableStateOf(false) }
+    val mins = (((trip.end ?: trip.start) - trip.start) / 60_000).toInt()
+    GlassCard(Modifier.fillMaxWidth(), explain = t("Tap a trip to show the delete button.", "Ýttu á ferð til að sjá eyða-hnappinn."), onClick = { confirm = !confirm }) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
-                Text(t.spotName, style = T.heading)
-                Text("${dayClock(t.start)} · ${if (mins < 60) "$mins min" else "${mins / 60} h ${mins % 60} min"}", style = T.small)
+                Text(spotLabel(trip.spotId, trip.spotName), style = T.heading)
+                Text("${dayWord(trip.start)} ${clock(trip.start)} · ${duration(mins)}", style = T.small)
             }
-            Text(if (t.catches.isEmpty()) "Blank" else "${t.catches.size} fish", style = T.heading.copy(color = if (t.catches.isEmpty()) C.mist else C.good))
+            Text(if (trip.catches.isEmpty()) t("Blank", "Ekkert") else t("${trip.catches.size} fish", if (trip.catches.size == 1) "1 fiskur" else "${trip.catches.size} fiskar"), style = T.heading.copy(color = if (trip.catches.isEmpty()) C.mist else C.good))
         }
-        if (t.catches.isNotEmpty()) {
+        if (trip.catches.isNotEmpty()) {
             Text(
-                t.catches.groupBy { it.species }.entries.joinToString(" · ") { (id, c) -> "${Fish.byId(id)?.en ?: id} ×${c.size}" },
+                trip.catches.groupBy { it.species }.entries.joinToString(" · ") { (id, c) -> "${Fish.byId(id)?.name ?: id} ×${c.size}" },
                 style = T.small,
                 modifier = Modifier.padding(top = 6.dp),
             )
         }
-        t.snapshot?.let { Text("Score when you started: ${it.score}", style = T.small.copy(color = C.faint)) }
+        trip.snapshot?.let { Text(t("Score when you started: ", "Líkur í byrjun ferðar: ") + it.score, style = T.small.copy(color = C.faint)) }
         if (confirm) {
             Spacer(Modifier.height(10.dp))
-            GlassButton("Delete this trip", accent = C.bad, style = T.small, onClick = { onDelete(t.id) })
+            GlassButton(t("Delete this trip", "Eyða þessari ferð"), accent = C.bad, style = T.small, onClick = { onDelete(trip.id) })
         }
     }
 }

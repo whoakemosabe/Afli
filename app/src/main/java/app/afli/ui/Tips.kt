@@ -1,5 +1,7 @@
 package app.afli.ui
 
+import app.afli.t
+
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.Animatable
@@ -151,7 +153,7 @@ fun ExplainBubble(modifier: Modifier = Modifier) {
         ) {
             Text(last.value, style = T.body)
             Spacer(Modifier.height(4.dp))
-            Text("Tap to close", style = T.small.copy(color = C.faint))
+            Text(t("Tap to close", "Ýttu til að loka"), style = T.small.copy(color = C.faint))
         }
     }
 }
@@ -165,12 +167,12 @@ fun ExplainBubble(modifier: Modifier = Modifier) {
 fun CoachOverlay(page: GraphicsLayer?) {
     val tour by Tips.tour
     val stepIndex by Tips.step
-    val t = tour ?: return
-    val step = t.second.getOrNull(stepIndex) ?: return
+    val tr = tour ?: return
+    val step = tr.second.getOrNull(stepIndex) ?: return
     val target = Tips.targets[step.target]
     val density = LocalDensity.current
-    val shown = remember(t.first) { Animatable(0f) }
-    LaunchedEffect(t.first) { shown.animateTo(1f, tween(380)) }
+    val shown = remember(tr.first) { Animatable(0f) }
+    LaunchedEffect(tr.first) { shown.animateTo(1f, tween(380)) }
     val pulse by rememberInfiniteTransition(label = "glow").animateFloat(
         0f, 1f, infiniteRepeatable(tween(1300, easing = FastOutSlowInEasing), RepeatMode.Reverse), label = "pulse",
     )
@@ -234,13 +236,13 @@ fun CoachOverlay(page: GraphicsLayer?) {
                 Text(step.text, style = T.body)
                 Spacer(Modifier.height(12.dp))
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text("${stepIndex + 1} of ${t.second.size}", style = T.small, modifier = Modifier.weight(1f))
-                    Text(if (stepIndex == t.second.lastIndex) "Got it" else "Next", style = T.heading.copy(color = C.brass))
+                    Text(t("${stepIndex + 1} of ${tr.second.size}", "${stepIndex + 1} af ${tr.second.size}"), style = T.small, modifier = Modifier.weight(1f))
+                    Text(if (stepIndex == tr.second.lastIndex) t("Got it", "Skilið") else t("Next", "Áfram"), style = T.heading.copy(color = C.brass))
                 }
             }
             Spacer(Modifier.height(10.dp))
             Text(
-                "Skip tips",
+                t("Skip tips", "Sleppa ábendingum"),
                 style = T.small,
                 modifier = Modifier
                     .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) { Tips.finish() }

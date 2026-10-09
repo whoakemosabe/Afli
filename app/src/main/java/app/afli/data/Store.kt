@@ -66,6 +66,11 @@ class Store(context: Context) {
         e.apply()
     }
 
+    /** "en" or "is" once chosen in Settings; null means follow the phone's language. */
+    var lang: String?
+        get() = prefs.getString("lang", null)
+        set(v) = prefs.edit().putString("lang", v).apply()
+
     var selectedSpot: String?
         get() = prefs.getString("spot", null)
         set(v) = prefs.edit().putString("spot", v).apply()

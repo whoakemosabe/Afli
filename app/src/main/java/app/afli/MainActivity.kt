@@ -26,6 +26,7 @@ class MainActivity : ComponentActivity() {
             navigationBarStyle = SystemBarStyle.dark(Color.TRANSPARENT),
         )
         Repo.init(this)
+        loadLang(this)
         Tips.bind(Repo.store())
         UpdateWatch.createChannel(this)
         UpdateWatch.schedule(this)

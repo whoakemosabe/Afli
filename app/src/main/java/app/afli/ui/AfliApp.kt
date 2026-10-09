@@ -83,6 +83,7 @@ import com.kyant.backdrop.backdrops.rememberLayerBackdrop
 import kotlin.math.roundToInt
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.ui.graphics.Brush
+import app.afli.t
 import androidx.compose.ui.graphics.GraphicsLayerScope
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Spacer
@@ -96,7 +97,8 @@ import androidx.compose.ui.unit.sp
 
 private enum class Sheet { SETTINGS, FIX_SPOT }
 
-private val tabs = listOf("Now", "Forecast", "Log", "Guide")
+private val tabs: List<String>
+    get() = listOf(t("Now", "Núna"), t("Forecast", "Spá"), t("Log", "Dagbók"), t("Guide", "Leiðarvísir"))
 
 @Composable
 fun AfliApp() {
@@ -166,15 +168,19 @@ fun AfliApp() {
                         },
                         label = "tab",
                         modifier = Modifier.fillMaxSize(),
-                    ) { t ->
-                        when (t) {
+                    ) { page ->
+                        when (page) {
                             0 -> NowScreen(
                                 s, contentTop, scrolls[0],
                                 onSpot = { Repo.choose(context, it) },
                                 onFixSpot = { sheet = Sheet.FIX_SPOT },
                                 onRetry = { Repo.refresh(context) },
                             )
-                            1 -> ForecastScreen(s, contentTop, scrolls[1])
+                            1 -> ForecastScreen(s, contentTop, scrolls[1], onOpenNow = { at ->
+                                Haptics.segment(view)
+                                tab = 0
+                                Scrub.jump = at
+                            })
                             2 -> LogScreen(
                                 s, contentTop, scrolls[2],
                                 onStart = { Repo.startTrip(context) },
@@ -201,16 +207,30 @@ fun AfliApp() {
                     Text(tabs[tab], style = T.title)
                     Text(
                         when {
-                            s.loading -> "Updating…"
-                            s.forecast != null -> "Updated ${clock(s.forecast!!.fetchedAt)}"
+                            s.loading -> t("Updating…", "Sæki…")
+                            s.forecast != null -> t("Updated ", "Uppfært ") + clock(s.forecast!!.fetchedAt)
                             else -> " "
                         },
                         style = T.small,
                     )
                 }
-                GlassIconButton(Icon.REFRESH, "Refresh: finds where you are again and reloads the forecast.", spin = s.loading) { Repo.refresh(context) }
+                // Once the score ring scrolls under the header, a mini score slides in here.
+                val ringGone = tab == 0 && with(LocalDensity.current) { scrolls[0].value > 230.dp.toPx() }
+                val shownScore = s.scores.getOrNull(Scrub.index(s))
+                AnimatedVisibility(
+                    ringGone && shownScore != null,
+                    enter = fadeIn(tween(220)) + slideInVertically(spring(dampingRatio = 0.8f, stiffness = Spring.StiffnessMediumLow)) { it / 2 },
+                    exit = fadeOut(tween(160)) + slideOutVertically(tween(180)) { it / 2 },
+                ) {
+                    shownScore?.let { hs ->
+                        MiniScore(hs, isNow = Scrub.at == null, Modifier.padding(end = 10.dp)) {
+                            scope.launch { scrolls[0].animateScrollTo(0, spring(stiffness = Spring.StiffnessMediumLow)) }
+                        }
+                    }
+                }
+                GlassIconButton(Icon.REFRESH, t("Refresh: finds where you are again and reloads the forecast.", "Sækja aftur: finnur hvar þú ert og sækir spána á ný."), spin = s.loading) { Repo.refresh(context) }
                 androidx.compose.foundation.layout.Spacer(Modifier.width(10.dp))
-                GlassIconButton(Icon.SETTINGS, "Settings: updates, tips and data credits.") { sheet = Sheet.SETTINGS }
+                GlassIconButton(Icon.SETTINGS, t("Settings: language, updates, tips and data credits.", "Stillingar: tungumál, uppfærslur, ábendingar og heimildir.")) { sheet = Sheet.SETTINGS }
             }
 
             UpdateBanner(Modifier.padding(top = headerH + 4.dp).blur(blur))
@@ -241,12 +261,13 @@ fun AfliApp() {
 }
 
 private val tabIcons = listOf(Icon.NOW, Icon.FORECAST, Icon.LOG, Icon.GUIDE)
-private val tabExplain = listOf(
-    "Now: the bite score, safety and conditions where you are.",
-    "Forecast: the week ahead, hour by hour.",
-    "Log: start a trip and tap each fish you catch.",
-    "Guide: how everything works, and the fish.",
-)
+private val tabExplain: List<String>
+    get() = listOf(
+        t("Now: the bite score, safety and conditions where you are.", "Núna: tökulíkurnar, öryggið og aðstæður þar sem þú ert."),
+        t("Forecast: the week ahead, hour by hour.", "Spá: vikan fram undan, klukkutíma fyrir klukkutíma."),
+        t("Log: start a trip and tap each fish you catch.", "Dagbók: byrjaðu ferð og ýttu á hvern fisk sem þú veiðir."),
+        t("Guide: how everything works, and the fish.", "Leiðarvísir: hvernig allt virkar, og fiskarnir."),
+    )
 
 /**
  * A floating capsule of liquid glass with a crisp rim. Pressing any tab squishes the whole

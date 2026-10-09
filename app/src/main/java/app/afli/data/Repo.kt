@@ -1,6 +1,7 @@
 package app.afli.data
 
 import android.content.Context
+import app.afli.Tx
 import android.location.Location
 import app.afli.model.Astro
 import app.afli.model.Fish
@@ -21,7 +22,7 @@ import java.util.UUID
 
 data class UiState(
     val loading: Boolean = true,
-    val error: String? = null,
+    val error: Tx? = null,
     val gps: Location? = null,
     val gpsAsked: Boolean = false,
     val spots: List<Spot> = emptyList(),
@@ -104,7 +105,7 @@ object Repo {
         } catch (e: kotlinx.coroutines.CancellationException) {
             throw e
         } catch (e: Exception) {
-            state.update { it.copy(loading = false, error = "Couldn't load the forecast. Check your connection and pull to refresh.") }
+            state.update { it.copy(loading = false, error = Tx("Couldn't load the forecast. Check your connection and pull down to try again.", "Náði ekki í spána. Athugaðu nettenginguna og dragðu niður til að reyna aftur.")) }
         }
     }
 
