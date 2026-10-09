@@ -51,7 +51,7 @@ Every build runs a live check against these feeds for Keflavík harbour and puts
 
 Every push to `main` builds a signed APK and publishes it as a GitHub Release. Open the latest release on your phone and tap `afli.apk`. Builds are signed with one key kept in the repo's Actions secrets (`KEYSTORE_B64`, `KEYSTORE_PASSWORD`, and optionally `KEY_ALIAS`), never in the code, so new versions install over the old one. Other branches build as debug-signed checks.
 
-The app keeps itself current: it checks GitHub for a newer release when opened (at most hourly) and in the background every ~6 hours, shows a banner across the top of the app and one notification per version, and one tap on the banner (or Settings → Updates) downloads and installs it in place.
+The app keeps itself current: it checks GitHub for a newer release when opened (at most every 10 minutes, and whenever you pull down or tap Refresh) and in the background every ~6 hours, shows a banner across the top of the app and one notification per version, and one tap on the banner (or Settings → Updates) downloads and installs it in place.
 
 ## Layout
 

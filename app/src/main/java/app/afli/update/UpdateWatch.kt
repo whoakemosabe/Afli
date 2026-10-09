@@ -28,18 +28,19 @@ import java.util.concurrent.TimeUnit
 
 /**
  * Notices new releases on its own: a background job asks GitHub every ~6 hours and
- * posts one quiet notification per new version; opening the app asks at most hourly and shows a
- * card on the Live screen. Tapping either opens Settings with the update ready to download.
+ * posts one quiet notification per new version; opening the app asks at most every 10 minutes,
+ * and pulling down or tapping Refresh always asks. A waiting version shows as the banner across
+ * the top of the app; tapping it downloads, then installs.
  */
 object UpdateWatch {
     private const val BACKGROUND_EVERY = 6 * 60 * 60_000L
-    private const val OPEN_EVERY = 60 * 60_000L
+    private const val OPEN_EVERY = 10 * 60_000L
     private const val CH_UPDATE = "updates"
     private const val ID_UPDATE = 3
     private const val WORK = "afli-update-check"
     const val EXTRA_OPEN_UPDATES = "app.afli.extra.OPEN_UPDATES"
 
-    /** The newer version waiting, if any (shown as the Now card). */
+    /** The newer version waiting, if any (shown as the banner at the top). */
     val waitingVersion = MutableStateFlow<String?>(null)
 
     /** Set when the app should open Setup's update section (from the notification or card). */
@@ -59,11 +60,11 @@ object UpdateWatch {
     }
 
     /** Asks GitHub if it's been long enough; returns the newer version waiting, if any. */
-    suspend fun check(context: Context, background: Boolean): String? {
+    suspend fun check(context: Context, background: Boolean, force: Boolean = false): String? {
         val p = prefs(context)
         val now = System.currentTimeMillis()
         val every = if (background) BACKGROUND_EVERY else OPEN_EVERY
-        if (now - p.getLong("last", 0L) >= every) {
+        if (force || now - p.getLong("last", 0L) >= every) {
             p.edit().putLong("last", now).apply()
             when (val r = Updater.check(context)) {
                 is Updater.Check.Available -> p.edit().putString("available", r.release.version).apply()

@@ -174,7 +174,10 @@ fun AfliApp() {
                                 s, contentTop, scrolls[0],
                                 onSpot = { Repo.choose(context, it) },
                                 onFixSpot = { sheet = Sheet.FIX_SPOT },
-                                onRetry = { Repo.refresh(context) },
+                                onRetry = {
+                                    Repo.refresh(context)
+                                    scope.launch { UpdateWatch.check(context, background = false, force = true) }
+                                },
                             )
                             1 -> ForecastScreen(s, contentTop, scrolls[1], onOpenNow = { at ->
                                 Haptics.segment(view)
@@ -228,7 +231,10 @@ fun AfliApp() {
                         }
                     }
                 }
-                GlassIconButton(Icon.REFRESH, t("Refresh: finds where you are again and reloads the forecast.", "Sækja aftur: finnur hvar þú ert og sækir spána á ný."), spin = s.loading) { Repo.refresh(context) }
+                GlassIconButton(Icon.REFRESH, t("Refresh: finds where you are again and reloads the forecast.", "Sækja aftur: finnur hvar þú ert og sækir spána á ný."), spin = s.loading) {
+                    Repo.refresh(context)
+                    scope.launch { UpdateWatch.check(context, background = false, force = true) }
+                }
                 androidx.compose.foundation.layout.Spacer(Modifier.width(10.dp))
                 GlassIconButton(Icon.SETTINGS, t("Settings: language, updates, tips and data credits.", "Stillingar: tungumál, uppfærslur, ábendingar og heimildir.")) { sheet = Sheet.SETTINGS }
             }
