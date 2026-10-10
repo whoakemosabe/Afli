@@ -38,7 +38,10 @@ android {
 
     buildTypes {
         release {
-            isMinifyEnabled = false
+            // R8 strips and optimises the code (Compose runs noticeably smoother with it).
+            isMinifyEnabled = true
+            isShrinkResources = true
+            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
             signingConfig = if (releaseKeystore.exists() && storePass != null) {
                 signingConfigs.getByName("release")
             } else {
@@ -77,6 +80,9 @@ dependencies {
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.11.0")
     implementation("androidx.lifecycle:lifecycle-runtime-compose:2.11.0")
     implementation("androidx.work:work-runtime-ktx:2.12.0")
+    // Installs the baseline profile on sideloaded installs, so the app is pre-compiled rather
+    // than warming up on every launch after an update.
+    implementation("androidx.profileinstaller:profileinstaller:1.4.1")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.11.0")
 
     testImplementation("junit:junit:4.13.2")

@@ -260,7 +260,11 @@ fun AfliApp() {
                     )
                 }
                 // Once the score ring scrolls under the header, a mini score slides in here.
-                val ringGone = tab == 0 && with(LocalDensity.current) { scrolls[0].value > 230.dp.toPx() }
+                // derivedStateOf: the header only rebuilds when the ring crosses the line, not
+                // on every pixel of scrolling (which rebuilt the header, bar and sheets each frame).
+                val ringLine = with(LocalDensity.current) { 230.dp.toPx() }
+                val pastRing by remember { androidx.compose.runtime.derivedStateOf { scrolls[0].value > ringLine } }
+                val ringGone = tab == 0 && pastRing
                 val shownScore = s.scores.getOrNull(Scrub.index(s))
                 LaunchedEffect(ringGone) { if (ringGone) Haptics.settle(view) }
                 AnimatedVisibility(

@@ -221,14 +221,16 @@ private fun StartCard(s: UiState, onStart: () -> Unit) {
 @Composable
 private fun LiveTrip(trip: Trip, s: UiState, onCatch: (String) -> Unit, onUndo: () -> Unit, onEnd: () -> Unit) {
     val view = LocalView.current
+    // The timeline and "last fish" only need the minute; the clock ticks on its own below,
+    // so the whole card isn't rebuilt every second.
     var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
     LaunchedEffect(trip.id) {
         while (true) {
             now = System.currentTimeMillis()
-            delay(1_000)
+            delay(20_000)
         }
     }
-    val secs = (now - trip.start) / 1000
+    val turns = remember(s.hours) { Model.tideTurns(s.hours) }
     val water = s.spots.firstOrNull { it.id == trip.spotId }?.water ?: s.spot?.water ?: Water.SEA
     // A little splash each time a fish is added.
     val splash = remember { Animatable(0f) }
@@ -245,11 +247,7 @@ private fun LiveTrip(trip: Trip, s: UiState, onCatch: (String) -> Unit, onUndo: 
         Row(verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
                 FitText(t("Fishing at ", "Á veiðum: ") + spotLabel(trip.spotId, trip.spotName), T.small, min = 10.sp)
-                Text(
-                    "%d:%02d:%02d".format(secs / 3600, (secs / 60) % 60, secs % 60),
-                    style = T.hero.copy(fontSize = 44.sp, lineHeight = 48.sp, letterSpacing = 0.sp, fontFamily = FontFamily.Monospace),
-                    maxLines = 1,
-                )
+                TripClock(trip.start)
             }
             Box(contentAlignment = Alignment.Center, modifier = Modifier.size(72.dp)) {
                 Canvas(
@@ -274,7 +272,7 @@ private fun LiveTrip(trip: Trip, s: UiState, onCatch: (String) -> Unit, onUndo: 
             val last = trip.catches.maxOfOrNull { it.time }
             MiniFact(t("Last fish", "Síðasti fiskur"), last?.let { duration(((now - it) / 60_000).toInt()) + t(" ago", " síðan") } ?: t("none yet", "enginn enn"), Modifier.weight(1f))
             if (water == Water.SEA) {
-                val turn = Model.tideTurns(s.hours).firstOrNull { it.t > now }
+                val turn = turns.firstOrNull { it.t > now }
                 MiniFact(
                     t("Tide", "Sjávarföll"),
                     turn?.let { (if (it.high) t("High in ", "Flóð eftir ") else t("Low in ", "Fjara eftir ")) + duration(((it.t - now) / 60_000).toInt()) } ?: "–",
@@ -419,6 +417,23 @@ private fun SummaryCard(trip: Trip, s: UiState, onShare: () -> Unit) {
             if (s.activeTrip == null && System.currentTimeMillis() - (trip.end ?: 0L) < 30 * 60_000L) GlassButton(t("Not done? Resume", "Ekki búinn? Halda áfram"), style = T.small, onClick = { Repo.resumeTrip() })
         }
     }
+}
+
+/** The running trip time, the only thing on the trip card that changes every second. */
+@Composable
+private fun TripClock(start: Long) {
+    var secs by remember(start) { mutableLongStateOf((System.currentTimeMillis() - start) / 1000) }
+    LaunchedEffect(start) {
+        while (true) {
+            secs = (System.currentTimeMillis() - start) / 1000
+            delay(1_000 - System.currentTimeMillis() % 1_000)
+        }
+    }
+    Text(
+        "%d:%02d:%02d".format(secs / 3600, (secs / 60) % 60, secs % 60),
+        style = T.hero.copy(fontSize = 44.sp, lineHeight = 48.sp, letterSpacing = 0.sp, fontFamily = FontFamily.Monospace),
+        maxLines = 1,
+    )
 }
 
 /** "all on the rising tide" style note: when most fish came, by tide direction. */

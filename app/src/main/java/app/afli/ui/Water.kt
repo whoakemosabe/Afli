@@ -13,6 +13,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.ShaderBrush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.CompositingStrategy
+import androidx.compose.ui.graphics.graphicsLayer
 
 /**
  * The sea behind every screen: deep navy with slow swells and faint caustic light, drawn on the
@@ -102,14 +104,22 @@ private fun AnimatedSea(modifier: Modifier, calm: Boolean, still: Boolean) {
         // Carry on from where the sea was, so turning it back on doesn't jump.
         val base = time.floatValue
         val start = withFrameNanos { it }
+        var last = 0L
         while (true) {
             withFrameNanos { now ->
-                val s = (now - start) / 1_000_000_000f
-                time.floatValue = base + if (calm) s * 0.15f else s
+                // 30 frames a second is plenty for a slow sea, and every frame it moves, every
+                // glass pane has to re-bend it. Scrolling still runs at the screen's full rate.
+                if (now - last >= 32_000_000L) {
+                    last = now
+                    val s = (now - start) / 1_000_000_000f
+                    time.floatValue = base + if (calm) s * 0.15f else s
+                }
             }
         }
     }
-    Canvas(modifier) {
+    // Its own GPU layer: the sea is painted once per step and the screen and every glass pane
+    // reuse that picture, instead of each one running the sea shader again.
+    Canvas(modifier.graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }) {
         shader.setFloatUniform("res", size.width, size.height)
         shader.setFloatUniform("t", time.floatValue)
         drawRect(brush)

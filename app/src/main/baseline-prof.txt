@@ -1,0 +1,2 @@
+# Pre-compile all of Afli's own code (the libraries ship their own profiles).
+HSPLapp/afli/**;->**(**)**
