@@ -83,6 +83,9 @@ import com.kyant.backdrop.backdrops.rememberLayerBackdrop
 import kotlin.math.roundToInt
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.animation.SizeTransform
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.slideInHorizontally
 import app.afli.t
 import androidx.compose.ui.graphics.GraphicsLayerScope
 import androidx.compose.foundation.border
@@ -207,7 +210,19 @@ fun AfliApp() {
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Column(Modifier.weight(1f)) {
-                    Text(tabs[tab], style = T.title, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+                    // The title slides a little toward where you're going and cross-fades, with a soft blur.
+                    AnimatedContent(
+                        tab,
+                        transitionSpec = {
+                            val dir = if (targetState > initialState) 1 else -1
+                            (slideInHorizontally(spring(dampingRatio = 0.85f, stiffness = Spring.StiffnessMediumLow)) { w -> dir * w / 5 } + fadeIn(tween(220, delayMillis = 40)))
+                                .togetherWith(slideOutHorizontally(tween(180)) { w -> -dir * w / 6 } + fadeOut(tween(140)))
+                                .using(SizeTransform(clip = false))
+                        },
+                        label = "title",
+                    ) { page ->
+                        Text(tabs[page], style = T.title, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+                    }
                     Text(
                         when {
                             s.loading -> t("Updating…", "Sæki…")

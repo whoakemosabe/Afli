@@ -252,8 +252,13 @@ fun NowScreen(
                 SpotCard(spot, onFixSpot)
 
                 Text(
-                    t("Forecast", "Spá") + ": ${s.forecast?.weatherModel ?: "Open-Meteo"} · " + t("Sea", "Sjór") + ": Open-Meteo Marine" +
-                        if (Feeds.inIceland(spot.lat, spot.lon)) " · " + t("Live", "Rauntími") + ": Veðurstofa Íslands" else "",
+                    listOfNotNull(
+                        t("Weather", "Veður") + ": ${s.forecast?.weatherModel ?: "Open-Meteo"}",
+                        t("Tides", "Sjávarföll") + ": " + (if (s.tidePort != null) t("Coast Guard tables", "töflur Landhelgisgæslunnar") else "Open-Meteo Marine"),
+                        if (spot.water == Water.SEA) t("Waves", "Öldur") + ": Open-Meteo Marine" else null,
+                        s.sea?.let { t("Sea temperature", "Sjávarhiti") + ": Hafrannsóknastofnun" },
+                        if (Feeds.inIceland(spot.lat, spot.lon)) t("Live wind", "Vindur í rauntíma") + ": Veðurstofa Íslands" else null,
+                    ).joinToString(" · "),
                     style = T.small.copy(color = C.faint),
                     textAlign = TextAlign.Center,
                     modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
