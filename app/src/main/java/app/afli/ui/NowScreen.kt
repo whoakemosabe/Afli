@@ -88,6 +88,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import app.afli.data.Feeds
 import app.afli.data.UiState
@@ -471,7 +472,7 @@ fun ScoreRing(score: Int, bite: Bite, modifier: Modifier = Modifier) {
     val shown by animateIntAsState(score, tween(700), label = "ringNum")
     val sweep by animateFloatAsState(score / 100f, spring(dampingRatio = 0.8f, stiffness = Spring.StiffnessLow), label = "ring")
     val col by animateColorAsState(C.score(score), tween(500), label = "ringCol")
-    Box(
+    androidx.compose.foundation.layout.BoxWithConstraints(
         modifier.explains(
             t(
                 "Bite score from 0 to 100. Over 60 is great, 35–60 is OK, under 35 is slow. It's a guide, not a promise.",
@@ -480,34 +481,55 @@ fun ScoreRing(score: Int, bite: Bite, modifier: Modifier = Modifier) {
         ),
         contentAlignment = Alignment.Center,
     ) {
+        // Everything is sized from the ring itself (designed at 128 dp), so a small ring on the
+        // Log is the same dial scaled down, never a big number squeezed into a small circle.
+        val k = (minOf(maxWidth, maxHeight) / 128.dp).coerceIn(0.3f, 2f)
+        val density = androidx.compose.ui.platform.LocalDensity.current
+        // dp, not sp: the number must fit the ring even with large system text.
+        val numSize = with(density) { (50.dp * k).toSp() }
+        val labelSize = with(density) { (13.dp * k).coerceAtLeast(9.dp).toSp() }
         Canvas(Modifier.fillMaxSize()) {
-            val w = 9.dp.toPx()
-            val inset = w / 2 + 6.dp.toPx()
+            val w = 9.dp.toPx() * k
+            val tick = 4.dp.toPx() * k
+            val inset = w / 2 + 6.dp.toPx() * k
             val tl = Offset(inset, inset)
-            val sz = Size(size.width - inset * 2, size.height - inset * 2)
+            val sz = Size(size.minDimension - inset * 2, size.minDimension - inset * 2)
             drawArc(C.line, 135f, 270f, false, tl, sz, style = Stroke(w, cap = StrokeCap.Round))
             if (sweep > 0.004f) {
                 drawArc(col.copy(alpha = 0.22f), 135f, 270f * sweep, false, tl, sz, style = Stroke(w * 2.4f, cap = StrokeCap.Round))
                 drawArc(col, 135f, 270f * sweep, false, tl, sz, style = Stroke(w, cap = StrokeCap.Round))
             }
             val r = sz.width / 2
-            val c = center
+            val c = Offset(inset + r, inset + r)
             listOf(35, 60).forEach { v ->
                 val a = Math.toRadians(135.0 + 270.0 * v / 100.0)
-                val r1 = r + w / 2 + 2.dp.toPx()
-                val r2 = r1 + 4.dp.toPx()
+                val r1 = r + w / 2 + 2.dp.toPx() * k
+                val r2 = r1 + tick
                 drawLine(
                     C.brass.copy(alpha = 0.8f),
                     Offset(c.x + (r1 * kotlin.math.cos(a)).toFloat(), c.y + (r1 * kotlin.math.sin(a)).toFloat()),
                     Offset(c.x + (r2 * kotlin.math.cos(a)).toFloat(), c.y + (r2 * kotlin.math.sin(a)).toFloat()),
-                    1.5.dp.toPx(),
+                    (1.5.dp.toPx() * k).coerceAtLeast(1.dp.toPx()),
                     cap = StrokeCap.Round,
                 )
             }
         }
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Text("$shown", style = T.hero.copy(fontSize = 50.sp, lineHeight = 52.sp, letterSpacing = (-1.5).sp, color = col))
-            Text(bite.label, style = T.small.copy(color = col, fontWeight = FontWeight.SemiBold))
+            Text(
+                "$shown",
+                style = T.hero.copy(
+                    fontSize = numSize,
+                    lineHeight = numSize,
+                    letterSpacing = (-0.03f).em,
+                    // Light reads well big; small numbers need more weight.
+                    fontWeight = if (k < 0.8f) FontWeight.Normal else FontWeight.Light,
+                    color = col,
+                ),
+                maxLines = 1,
+                softWrap = false,
+            )
+            // Too small to read under 60-ish dp; the colour still says it.
+            if (k >= 0.55f) Text(bite.label, style = T.small.copy(fontSize = labelSize, lineHeight = labelSize, color = col, fontWeight = FontWeight.SemiBold), maxLines = 1, softWrap = false)
         }
     }
 }
