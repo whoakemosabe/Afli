@@ -42,6 +42,8 @@ data class UiState(
     val offline: Boolean = false,
     /** The trip just deleted, kept for a few seconds so it can be undone. */
     val lastDeleted: Trip? = null,
+    /** The trip just ended, for the summary card in the log. */
+    val lastEnded: Trip? = null,
     val scores: List<HourScore> = emptyList(),
     val nowIndex: Int = 0,
     val window: Window? = null,
@@ -269,7 +271,8 @@ object Repo {
             ),
         )
         db.saveTrip(trip)
-        state.update { it.copy(activeTrip = trip, trips = db.trips(), spots = db.spots(), spot = target) }
+        state.update { it.copy(activeTrip = trip, trips = db.trips(), spots = db.spots(), spot = target, lastEnded = null) }
+        app.afli.update.TripNotice.update(appContext)
     }
 
     fun addCatch(speciesId: String) {
@@ -278,6 +281,7 @@ object Repo {
         val updated = t.copy(catches = t.catches + Catch(speciesId, System.currentTimeMillis()))
         db.saveTrip(updated)
         state.update { it.copy(activeTrip = updated, trips = db.trips()) }
+        app.afli.update.TripNotice.update(appContext)
     }
 
     fun undoCatch() {
@@ -286,13 +290,15 @@ object Repo {
         val updated = t.copy(catches = t.catches.dropLast(1))
         db.saveTrip(updated)
         state.update { it.copy(activeTrip = updated, trips = db.trips()) }
+        app.afli.update.TripNotice.update(appContext)
     }
 
     fun endTrip() {
         val t = state.value.activeTrip ?: return
         val done = t.copy(end = System.currentTimeMillis())
         db.saveTrip(done)
-        state.update { it.copy(activeTrip = null, trips = db.trips()) }
+        state.update { it.copy(activeTrip = null, trips = db.trips(), lastEnded = done) }
+        app.afli.update.TripNotice.update(appContext)
         rescore()
     }
 
@@ -320,6 +326,10 @@ object Repo {
         db.saveTrip(t)
         state.update { it.copy(trips = db.trips(), lastDeleted = null, activeTrip = if (t.end == null) t else it.activeTrip) }
         rescore()
+    }
+
+    fun dismissSummary() {
+        state.update { it.copy(lastEnded = null) }
     }
 
     fun forgetDeleted() {

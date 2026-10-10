@@ -98,7 +98,12 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
 
-private enum class Sheet { SETTINGS, FIX_SPOT, TRIP, SPOTS }
+private enum class Sheet { SETTINGS, FIX_SPOT, TRIP, SPOTS, SHARE }
+
+/** A tab another part of the app wants shown (e.g. the trip notification opens Log). */
+object OpenTab {
+    var request by mutableStateOf<Int?>(null)
+}
 
 private val tabs: List<String>
     get() = listOf(t("Now", "Núna"), t("Forecast", "Spá"), t("Log", "Dagbók"), t("Guide", "Leiðarvísir"))
@@ -122,6 +127,13 @@ fun AfliApp() {
     LaunchedEffect(onboarded) { if (onboarded) Repo.refresh(context) }
     // A bite alert (or Forecast's See in Now) asks for an hour: show Now.
     LaunchedEffect(Scrub.jump) { if (Scrub.jump != null) tab = 0 }
+    LaunchedEffect(OpenTab.request) {
+        OpenTab.request?.let {
+            tab = it
+            sheet = null
+            OpenTab.request = null
+        }
+    }
     LaunchedEffect(openUpdates) {
         if (openUpdates) {
             sheet = Sheet.SETTINGS
@@ -200,6 +212,10 @@ fun AfliApp() {
                                 onOpenTrip = {
                                     openTrip = it
                                     sheet = Sheet.TRIP
+                                },
+                                onShare = {
+                                    openTrip = it
+                                    sheet = Sheet.SHARE
                                 },
                             )
                             else -> GuideScreen(contentTop, scrolls[3])
@@ -281,7 +297,10 @@ fun AfliApp() {
                         onboarded = false
                     })
                     Sheet.FIX_SPOT -> s.spot?.let { SpotFixContent(it) { sheet = null } }
-                    Sheet.TRIP -> (s.trips.firstOrNull { it.id == openTrip } ?: s.activeTrip?.takeIf { it.id == openTrip })?.let { TripContent(it) { sheet = null } }
+                    Sheet.TRIP -> (s.trips.firstOrNull { it.id == openTrip } ?: s.activeTrip?.takeIf { it.id == openTrip })?.let {
+                        TripContent(it, onShare = { sheet = Sheet.SHARE }) { sheet = null }
+                    }
+                    Sheet.SHARE -> s.trips.firstOrNull { it.id == openTrip }?.let { ShareContent(it) }
                     Sheet.SPOTS -> SpotsContent(s) {
                         sheet = null
                         tab = 0

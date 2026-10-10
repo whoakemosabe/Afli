@@ -32,6 +32,7 @@ class MainActivity : ComponentActivity() {
         UpdateWatch.createChannel(this)
         UpdateWatch.schedule(this)
         app.afli.update.BiteAlerts.sync(this)
+        app.afli.update.TripNotice.update(this)
         UpdateWatch.waitingVersion.value = UpdateWatch.waiting(this)
         handleIntent(intent)
         setContent {
@@ -57,6 +58,11 @@ class MainActivity : ComponentActivity() {
 
     /** The "update ready" notification asks to open the update section. */
     private fun handleIntent(intent: Intent?) {
+        // The trip notification opens the log.
+        if (intent?.getBooleanExtra(app.afli.update.TripNotice.EXTRA_OPEN_LOG, false) == true) {
+            intent.removeExtra(app.afli.update.TripNotice.EXTRA_OPEN_LOG)
+            app.afli.ui.OpenTab.request = 2
+        }
         // A bite alert opens Now on the hour it's about.
         val jump = intent?.getLongExtra(app.afli.update.BiteAlerts.EXTRA_JUMP, 0L) ?: 0L
         if (jump > 0) {

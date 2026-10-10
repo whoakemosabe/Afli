@@ -58,7 +58,7 @@ private val typicalCm = mapOf(
  * or + to set it), fish he forgot to log, a note, photos, and delete (with undo in the log).
  */
 @Composable
-fun TripContent(trip: Trip, onClose: () -> Unit) {
+fun TripContent(trip: Trip, onShare: () -> Unit, onClose: () -> Unit) {
     val view = LocalView.current
     var confirmDelete by remember(trip.id) { mutableStateOf(false) }
     var adding by remember(trip.id) { mutableStateOf(false) }
@@ -163,6 +163,8 @@ fun TripContent(trip: Trip, onClose: () -> Unit) {
             }
             if (trip.photos.isNotEmpty()) Text(t("Tap a photo twice to remove it.", "Ýttu tvisvar á mynd til að fjarlægja hana."), style = T.small.copy(fontSize = 11.sp, color = C.faint), modifier = Modifier.padding(top = 6.dp))
         }
+
+        if (trip.end != null) GlassButton(t("Share this trip", "Deila ferðinni"), accent = C.brass, modifier = Modifier.fillMaxWidth(), onClick = onShare)
 
         GlassButton(
             if (confirmDelete) t("Tap again to delete this trip", "Ýttu aftur til að eyða ferðinni") else t("Delete this trip", "Eyða þessari ferð"),
