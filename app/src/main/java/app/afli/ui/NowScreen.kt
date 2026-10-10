@@ -109,6 +109,7 @@ import app.afli.tempText
 import app.afli.tempNum
 import app.afli.tempUnit
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.launch
 import java.time.Instant
 import java.time.ZoneId
@@ -404,7 +405,10 @@ private fun HeroCard(s: UiState, spot: Spot, now: HourScore, sel: Int, hours: Li
                 Text(t("Back to now", "Aftur í núna"), style = T.small.copy(fontSize = 12.sp, color = C.brass), maxLines = 1, softWrap = false)
             }
         }
-        TimeStrip(s, sel, Modifier.coachTarget("strip"))
+        // A new spot or a new "now" starts the strip fresh at the current hour.
+        androidx.compose.runtime.key(spot.id, s.scores.getOrNull(s.nowIndex)?.t) {
+            TimeStrip(s, sel, Modifier.coachTarget("strip"))
+        }
     }
 }
 
@@ -608,6 +612,10 @@ private fun TimeStrip(s: UiState, sel: Int, modifier: Modifier = Modifier) {
             Scrub.at = next
             Haptics.scrub(view)
         }
+    }
+    // A soft bump when a swipe comes to rest on an hour.
+    LaunchedEffect(list) {
+        snapshotFlow { list.isScrollInProgress }.distinctUntilChanged().drop(1).collect { moving -> if (!moving) Haptics.settle(view) }
     }
     // A requested jump (Next best, Back to now): glide there, then settle on it.
     LaunchedEffect(Scrub.jump) {

@@ -235,6 +235,7 @@ fun AfliApp() {
                 // Once the score ring scrolls under the header, a mini score slides in here.
                 val ringGone = tab == 0 && with(LocalDensity.current) { scrolls[0].value > 230.dp.toPx() }
                 val shownScore = s.scores.getOrNull(Scrub.index(s))
+                LaunchedEffect(ringGone) { if (ringGone) Haptics.settle(view) }
                 AnimatedVisibility(
                     ringGone && shownScore != null,
                     enter = fadeIn(tween(220)) + slideInVertically(spring(dampingRatio = 0.8f, stiffness = Spring.StiffnessMediumLow)) { it / 2 },
@@ -377,6 +378,12 @@ private fun SheetHost(open: Boolean, onClose: () -> Unit, content: @Composable (
     LaunchedEffect(open) { if (open) drag.snapTo(0f) }
     val pulled = (drag.value / sheetH).coerceIn(0f, 1f)
     val scrim by animateFloatAsState(if (open) 1f else 0f, tween(300), label = "scrim")
+
+    // A tick when a drag passes the point where letting go will close the sheet (and back).
+    LaunchedEffect(Unit) {
+        androidx.compose.runtime.snapshotFlow { drag.value > sheetH / 3f }
+            .collect { past -> if (past) Haptics.segment(view) }
+    }
 
     fun settle(velocity: Float) {
         scope.launch {

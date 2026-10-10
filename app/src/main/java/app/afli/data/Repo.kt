@@ -45,6 +45,9 @@ data class UiState(
     val activeTrip: Trip? = null,
 ) {
     val now: HourScore? get() = scores.getOrNull(nowIndex)
+
+    /** Everything that belongs to one spot's forecast, emptied. */
+    fun cleared() = copy(forecast = null, hours = emptyList(), scores = emptyList(), nowIndex = 0, window = null, live = null, sea = null, tidePort = null)
 }
 
 /**
@@ -85,7 +88,11 @@ object Repo {
                 fix != null -> Spot("here", runCatching { Locator.nameFor(app, fix.latitude, fix.longitude) }.getOrDefault("Here"), fix.latitude, fix.longitude)
                 else -> spots.first()
             }
-            state.update { it.copy(gps = fix, gpsAsked = true, spots = spots, spot = spot, atSpot = near != null) }
+            state.update {
+                val moved = it.spot?.id != spot.id
+                // A different water: drop the old numbers so nothing on screen belongs to the last spot.
+                (if (moved) it.cleared() else it).copy(gps = fix, gpsAsked = true, spots = spots, spot = spot, atSpot = near != null)
+            }
             load(spot)
         }
     }
@@ -95,7 +102,7 @@ object Repo {
         db.selectedSpot = if (spot.id == "here") null else spot.id
         job?.cancel()
         job = scope.launch {
-            state.update { it.copy(spot = spot, atSpot = false, loading = true, error = null) }
+            state.update { (if (it.spot?.id != spot.id) it.cleared() else it).copy(spot = spot, atSpot = false, loading = true, error = null) }
             load(spot)
         }
     }
