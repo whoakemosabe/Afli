@@ -31,21 +31,23 @@ For the next 12 hours, the forecast's wind and gusts are nudged toward the neare
 
 Safety is worked out on its own and never mixed into the score: gusts of 22 m/s or more, or waves of 3.5 m or more at a sea spot, mean Stay home; gusts from 15 m/s, waves from 2 m, or cold and windy mean Careful. Harbours count about a third of the offshore wave height.
 
-The score is a guide, not a promise. Tides come from a sea model and are approximate near the shore.
+The score is a guide, not a promise. At Reykjavík, Hafnarfjörður, Keflavík (and Njarðvík), Sandgerði, Grindavík and Akranes the tides come from the Coast Guard's tide tables; elsewhere from a sea model, which is approximate near the shore. Weather can push the real sea level a little off either.
 
 ## Data
 
 | Source | Used for |
 | --- | --- |
 | Open-Meteo forecast API (DMI HARMONIE 2 km in Iceland, best available model elsewhere) | Wind, gusts, pressure, cloud, rain and air temperature by hour |
-| Open-Meteo Marine API (DWD and Météo-France models) | Wave height, sea surface temperature and sea level including tides |
+| Landhelgisgæsla Íslands (Icelandic Coast Guard) tide tables 2026 | Every high and low at Reykjavík, moved to nearby harbours with the tables' own time and height corrections; the curve between them follows the tables' half-cosine |
+| Open-Meteo Marine API (DWD and Météo-France models) | Wave height, modelled sea temperature, and tides where there's no Coast Guard table |
+| Hafrannsóknastofnun sea temperature sensors | The latest measured sea temperature from the nearest sensor (Reykjavík for the Reykjanes harbours); the model is shifted to match it |
 | Veðurstofa Íslands, `api.vedur.is/weather` (CC BY 4.0) | Latest 10-minute wind, gusts and pressure from the nearest station, in Iceland only |
 | Wikipedia and Hafrannsóknastofnun | The fish facts and temperature ranges, built into the app |
 | British Sea Fishing, shore anglers' reports from Iceland, Vísir | Bait and lure tips for each fish, built into the app |
 | On-device sun and moon maths | Light, sunrise and sunset, dawn and dusk windows, spring and neap tides |
 | The phone's GPS and compass | Where you are and which way the water faces |
 
-Every build runs a live check against these feeds for Keflavík harbour and puts the result in the release notes.
+The tide table covers 2026; next year's file goes in `app/src/main/assets/tides/` when the Coast Guard publishes it. Every build runs a live check against these feeds for Keflavík harbour and puts the result in the release notes.
 
 ## Install
 

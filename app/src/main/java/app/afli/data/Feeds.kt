@@ -27,6 +27,9 @@ data class Live(
     val pressure: Double,
 )
 
+/** Latest measured sea temperature from Hafrannsóknastofnun's nearest coastal sensor. */
+data class SeaReading(val station: String, val distanceKm: Double, val time: Long, val temp: Double)
+
 data class Forecast(
     val hours: List<Hour>,
     val weatherModel: String,
@@ -164,6 +167,38 @@ object Feeds {
             airTemp = o.num("t"),
             pressure = o.num("p", "ps"),
         )
+    }
+
+    private data class Sensor(val name: String, val lat: Double, val lon: Double)
+
+    @Volatile private var sensors: List<Sensor>? = null
+
+    private const val HAFRO = "https://datalogger.hafogvatn.cloud/ext/measurements"
+
+    /**
+     * The newest sea temperature from Hafrannsóknastofnun's nearest sensor within 60 km, if it
+     * reported in the last 12 hours. Iceland only.
+     */
+    suspend fun seaTemp(lat: Double, lon: Double): SeaReading? = withContext(Dispatchers.IO) {
+        if (!inIceland(lat, lon)) return@withContext null
+        val list = sensors ?: run {
+            val a = JSONArray(get("$HAFRO/locations/info"))
+            (0 until a.length()).mapNotNull { i ->
+                val o = a.getJSONObject(i)
+                val sLat = o.num("latitude")
+                val sLon = o.num("longitude")
+                if (sLat.isNaN() || sLon.isNaN()) null else Sensor(o.optString("name"), sLat, sLon)
+            }.also { sensors = it }
+        }
+        val (near, d) = list.map { it to km(lat, lon, it.lat, it.lon) }.minByOrNull { it.second } ?: return@withContext null
+        if (d > 60) return@withContext null
+        val name = java.net.URLEncoder.encode(near.name, "UTF-8").replace("+", "%20")
+        val o = JSONObject(get("$HAFRO/locations/names/newest?locationName=$name&valueType=TEMPERATURE"))
+        val m = o.optJSONArray("devices")?.optJSONObject(0)?.optJSONArray("measurements")?.optJSONObject(0) ?: return@withContext null
+        val v = m.num("value")
+        val at = runCatching { java.time.Instant.parse(m.getString("measureDate")).toEpochMilli() }.getOrNull() ?: return@withContext null
+        if (v.isNaN() || v < -3 || v > 25 || System.currentTimeMillis() - at > 12 * 3_600_000L) return@withContext null
+        SeaReading(near.name, d, at, v)
     }
 
     /** True if two readings are about the same, used to sanity-check station data. */

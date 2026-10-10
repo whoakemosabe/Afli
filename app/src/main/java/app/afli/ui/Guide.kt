@@ -113,12 +113,12 @@ private val guide: List<Pair<String, String>>
             "Beindu símanum þangað sem þú kastar og ýttu á Stilla svo Afli viti hvenær vindur blæs að landi eða frá. Segðu hvort þetta sé höfn, opin strönd eða vatn.",
         ),
         t("Tides", "Sjávarföll") to t(
-            "The tide curve comes from a sea model and is only approximate close to the shore. Times run along the bottom, with the time of each high and low. Fish usually feed best while the water is moving, not at the turn.",
-            "Sjávarfallaferillinn kemur úr líkani og er ónákvæmari nálægt landi. Tíminn er neðst og tími hvers flóðs og fjöru er merktur. Fiskurinn tekur yfirleitt best þegar sjórinn er á hreyfingu, ekki á liggjandanum.",
+            "At Keflavík, Njarðvík and the other Reykjanes harbours the tides come from the Coast Guard's tide tables; elsewhere from a sea model, which is less exact near the shore. Times run along the bottom, with the time of each high and low. Fish usually feed best while the water is moving, not at the turn.",
+            "Við Keflavík, Njarðvík og aðrar hafnir á Reykjanesi koma sjávarföllin úr sjávarfallatöflum Landhelgisgæslunnar; annars staðar úr líkani sem er ónákvæmara nálægt landi. Tíminn er neðst og tími hvers flóðs og fjöru er merktur. Fiskurinn tekur yfirleitt best þegar sjórinn er á hreyfingu, ekki á liggjandanum.",
         ),
         t("Log every trip", "Skráðu hverja ferð") to t(
-            "Tap Start fishing at the water, tap a fish each time you catch one, and End trip when you leave. Log the empty trips too: they teach Afli when fish don't bite.",
-            "Ýttu á Byrja að veiða á staðnum, ýttu á fisk í hvert sinn sem þú veiðir og Ljúka ferð þegar þú ferð. Skráðu líka ferðir þar sem ekkert veiddist: þær kenna Afla hvenær fiskurinn tekur ekki.",
+            "Tap Start fishing at the water, tap a fish each time you catch one, and End trip when you leave. Log the empty trips too: they show when fish don't bite.",
+            "Ýttu á Byrja að veiða á staðnum, ýttu á fisk í hvert sinn sem þú veiðir og Ljúka ferð þegar þú ferð. Skráðu líka ferðir þar sem ekkert veiddist: þær sýna hvenær fiskurinn tekur ekki.",
         ),
         t("Forecast", "Spá") to t(
             "Seven days of hour bars coloured by bite score. Red-tinted bars are Stay home. Tap a bar for that hour, then See in Now for the full picture. Days far ahead are less certain.",
@@ -145,7 +145,7 @@ fun Onboarding(onDone: () -> Unit) {
     val pages = listOf(
         Triple(t("This is your bite score", "Þetta eru tökulíkurnar"), t("Big number means a good time to fish. Afli works it out from the tide, light, wind, pressure and water temperature.", "Há tala þýðir góðan tíma til að veiða. Afli reiknar hana út frá sjávarföllum, birtu, vindi, loftþrýstingi og sjávarhita."), C.good),
         Triple(t("This says if it's safe", "Hér sérðu hvort óhætt er að veiða"), t("Safe, Careful or Stay home, from wind gusts and waves. Stay home means stay home.", "Öruggt, Varúð eða Vertu heima, út frá hviðum og öldum. Vertu heima þýðir vertu heima."), C.ok),
-        Triple(t("Log every trip", "Skráðu hverja ferð"), t("Tap Start fishing at the water. Log the empty trips too; that's how Afli learns what works at your spots.", "Ýttu á Byrja að veiða á staðnum. Skráðu líka ferðir þar sem ekkert veiddist; þannig lærir Afli hvað virkar á þínum stöðum."), C.brass),
+        Triple(t("Log every trip", "Skráðu hverja ferð"), t("Tap Start fishing at the water. Log the empty trips too, so you can see what works at your spots.", "Ýttu á Byrja að veiða á staðnum. Skráðu líka ferðir þar sem ekkert veiddist svo þú sjáir hvað virkar á þínum stöðum."), C.brass),
     )
     val pager = rememberPagerState { pages.size + 1 }
     val scope = rememberCoroutineScope()

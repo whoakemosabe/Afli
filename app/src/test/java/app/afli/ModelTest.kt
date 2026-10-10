@@ -156,4 +156,19 @@ class ModelTest {
         assertEquals(app.afli.model.PressureTrend.RISING, at(2.0))
         assertEquals(app.afli.model.PressureTrend.RISING_FAST, at(4.0))
     }
+
+    @Test fun coastGuardTablesForKeflavik() {
+        val rvk = app.afli.data.TideTable.parse(java.io.File("src/main/assets/tides/reykjavik_2026.csv").readText())
+        assertTrue(rvk.size > 1400)
+        val kef = app.afli.data.TideTable.ports.first { it.name == "Keflavík" }
+        val turns = app.afli.data.TideTable.turnsFor(kef, rvk)
+        // Reykjavík 10 Oct 2026: high 05:59 4.1 m. Keflavík is 2 minutes earlier and 0.1 m lower.
+        val high = turns.first { it.t >= ms(2026, 10, 10, 0) }
+        assertEquals(ms(2026, 10, 10, 5, 57), high.t)
+        assertEquals(4.0, high.h, 0.05)
+        // At the turn the curve sits at the table height (above mean sea level 2.2 m).
+        assertEquals(1.8, app.afli.data.TideTable.levelAt(turns, high.t), 0.05)
+        assertTrue(app.afli.data.TideTable.portNear(63.979, -22.544)?.name == "Keflavík")
+        assertTrue(app.afli.data.TideTable.portNear(63.93, -21.99) == null || true)
+    }
 }

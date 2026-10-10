@@ -83,15 +83,17 @@ fun SettingsContent(onReplayIntro: () -> Unit) {
             SectionLabel(t("Data", "Gögn"))
             Text(
                 t(
-                    "Weather: Open-Meteo (DMI HARMONIE in Iceland). Sea, waves and tides: Open-Meteo Marine, using DWD and Météo-France models. " +
-                        "Live station readings: Veðurstofa Íslands, CC BY 4.0. Fish facts: Wikipedia and Hafrannsóknastofnun.",
-                    "Veður: Open-Meteo (DMI HARMONIE á Íslandi). Sjór, öldur og sjávarföll: Open-Meteo Marine, með líkönum DWD og Météo-France. " +
-                        "Mælingar í rauntíma: Veðurstofa Íslands, CC BY 4.0. Um fiskana: Wikipedia og Hafrannsóknastofnun.",
+                    "Weather: Open-Meteo (DMI HARMONIE in Iceland). Tides at Reykjanes harbours: Landhelgisgæsla Íslands tide tables; elsewhere Open-Meteo Marine. " +
+                        "Waves and sea model: Open-Meteo Marine (DWD and Météo-France). Measured sea temperature: Hafrannsóknastofnun. " +
+                        "Live wind and pressure: Veðurstofa Íslands, CC BY 4.0. Fish facts: Wikipedia and Hafrannsóknastofnun.",
+                    "Veður: Open-Meteo (DMI HARMONIE á Íslandi). Sjávarföll við hafnir á Reykjanesi: sjávarfallatöflur Landhelgisgæslu Íslands; annars Open-Meteo Marine. " +
+                        "Öldur og sjávarlíkan: Open-Meteo Marine (DWD og Météo-France). Mældur sjávarhiti: Hafrannsóknastofnun. " +
+                        "Vindur og loftþrýstingur í rauntíma: Veðurstofa Íslands, CC BY 4.0. Um fiskana: Wikipedia og Hafrannsóknastofnun.",
                 ),
                 style = T.small,
             )
             Spacer(Modifier.height(6.dp))
-            Text(t("Tides here are a model estimate and not for navigation.", "Sjávarföllin hér eru mat úr líkani og ekki ætluð til siglinga."), style = T.small.copy(color = C.faint))
+            Text(t("Tides in Afli are not for navigation.", "Sjávarföllin í Afla eru ekki ætluð til siglinga."), style = T.small.copy(color = C.faint))
             Spacer(Modifier.height(6.dp))
             Text(t("Version ", "Útgáfa ") + Updater.installedVersion(context), style = T.small.copy(color = C.faint))
         }
@@ -238,7 +240,6 @@ fun UpdateBanner(modifier: Modifier = Modifier) {
             Modifier.fillMaxWidth().padding(horizontal = 16.dp),
             shape = androidx.compose.foundation.shape.RoundedCornerShape(22.dp),
             padding = androidx.compose.foundation.layout.PaddingValues(horizontal = 16.dp, vertical = 12.dp),
-            glow = C.brass,
             explain = t("A new version of Afli is out. Tap to download it, then tap again to install. It installs over this one; your trips are kept.", "Ný útgáfa af Afla er komin. Ýttu til að sækja hana og aftur til að setja upp. Hún kemur í stað þessarar og ferðirnar þínar haldast."),
             onClick = {
                 when (val st = state) {

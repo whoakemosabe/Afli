@@ -50,7 +50,7 @@ fun LogScreen(s: UiState, top: Dp, scroll: ScrollState, onStart: () -> Unit, onC
         Tips.maybeTour(
             "log",
             listOf(
-                Tips.Step("start", t("Log every trip", "Skráðu hverja ferð"), t("Tap Start fishing when you get to the water. Log empty trips too; that's how Afli learns what works.", "Ýttu á Byrja að veiða þegar þú mætir á staðinn. Skráðu líka ferðir þar sem ekkert veiddist; þannig lærir Afli hvað virkar.")),
+                Tips.Step("start", t("Log every trip", "Skráðu hverja ferð"), t("Tap Start fishing when you get to the water. Log empty trips too; they show when fish don't bite.", "Ýttu á Byrja að veiða þegar þú mætir á staðinn. Skráðu líka ferðir þar sem ekkert veiddist; þær sýna hvenær fiskurinn tekur ekki.")),
             ),
         )
     }
@@ -69,7 +69,7 @@ fun LogScreen(s: UiState, top: Dp, scroll: ScrollState, onStart: () -> Unit, onC
                     Text(t("Going fishing?", "Ertu að fara að veiða?"), style = T.title)
                     Spacer(Modifier.height(4.dp))
                     Text(
-                        s.spot?.let { t("Start a trip at ${it.label}. Afli saves the conditions so it can learn.", "Byrjaðu ferð á þessum stað (${it.label}). Afli vistar aðstæðurnar svo hann geti lært.") }
+                        s.spot?.let { t("Start a trip at ${it.label}. Afli saves the conditions with your catch.", "Byrjaðu ferð á þessum stað (${it.label}). Afli vistar aðstæðurnar með aflanum.") }
                             ?: t("Start a trip where you're standing.", "Byrjaðu ferð þar sem þú stendur."),
                         style = T.small,
                     )
@@ -96,7 +96,7 @@ fun LogScreen(s: UiState, top: Dp, scroll: ScrollState, onStart: () -> Unit, onC
         } else if (s.activeTrip == null) {
             GlassCard(Modifier.fillMaxWidth()) {
                 Text(t("No trips yet", "Engar ferðir enn"), style = T.heading)
-                Text(t("Go to the harbour and tap Start fishing. After 20 or so trips, Afli starts to learn your spots.", "Farðu niður á bryggju og ýttu á Byrja að veiða. Eftir um 20 ferðir fer Afli að læra á staðina þína."), style = T.small)
+                Text(t("Go to the harbour and tap Start fishing. Each trip keeps the tide, wind and score it started in, so you can see what worked.", "Farðu niður á bryggju og ýttu á Byrja að veiða. Hver ferð geymir sjávarföll, vind og líkur í byrjun svo þú sjáir hvað virkaði."), style = T.small)
             }
         }
         BottomBarSpace()

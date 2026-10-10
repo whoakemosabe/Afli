@@ -34,6 +34,10 @@ data class UiState(
     /** The forecast hours as scored: nudged toward the live station near now. Show these. */
     val hours: List<Hour> = emptyList(),
     val live: Live? = null,
+    /** Measured sea temperature nearby (Hafrannsóknastofnun), if any. */
+    val sea: SeaReading? = null,
+    /** The Coast Guard harbour whose tide table is used, or null when tides come from the sea model. */
+    val tidePort: String? = null,
     val scores: List<HourScore> = emptyList(),
     val nowIndex: Int = 0,
     val window: Window? = null,
@@ -53,8 +57,11 @@ object Repo {
     private lateinit var db: Store
     private var job: Job? = null
 
+    private lateinit var appContext: Context
+
     fun init(context: Context) {
         if (::db.isInitialized) return
+        appContext = context.applicationContext
         db = Store(context.applicationContext)
         val trips = db.trips()
         state.update { it.copy(spots = db.spots(), trips = trips, activeTrip = trips.firstOrNull { t -> t.end == null }) }
@@ -97,10 +104,11 @@ object Repo {
         try {
             val fc = Feeds.forecast(spot.lat, spot.lon)
             val live = runCatching { Feeds.live(spot.lat, spot.lon) }.getOrNull()
-            val scored = withContext(Dispatchers.Default) { scoreFor(fc, spot, live) }
+            val sea = runCatching { Feeds.seaTemp(spot.lat, spot.lon) }.getOrNull()
+            val scored = withContext(Dispatchers.Default) { scoreFor(fc, spot, live, sea) }
             state.update {
                 it.copy(
-                    loading = false, forecast = fc, live = live,
+                    loading = false, forecast = fc, live = live, sea = sea, tidePort = scored.tidePort,
                     scores = scored.scores, nowIndex = scored.nowIndex, hours = scored.hours,
                     window = Model.nextWindow(scored.scores, System.currentTimeMillis()),
                 )
@@ -112,7 +120,7 @@ object Repo {
         }
     }
 
-    private class Scored(val scores: List<HourScore>, val nowIndex: Int, val hours: List<Hour>)
+    private class Scored(val scores: List<HourScore>, val nowIndex: Int, val hours: List<Hour>, val tidePort: String?)
 
     /**
      * Scores every hour. Before scoring, the forecast's current wind and gusts are nudged toward
@@ -120,7 +128,7 @@ object Repo {
      * past and next 12 hours, fading only after that, so the correction itself never shows up
      * as a pressure trend (the score reads the 3-hour change).
      */
-    private fun scoreFor(fc: Forecast, spot: Spot, live: Live?): Scored {
+    private fun scoreFor(fc: Forecast, spot: Spot, live: Live?, sea: SeaReading?): Scored {
         val now = System.currentTimeMillis()
         val nowIndex = fc.hours.indexOfLast { it.t <= now }.coerceAtLeast(0)
         var hours = fc.hours
@@ -144,11 +152,37 @@ object Repo {
                 )
             }
         }
+        // Tides from the Coast Guard tables at harbours they cover; the sea model elsewhere.
+        var tidePort: String? = null
+        if (spot.water == Water.SEA) {
+            TideTable.apply(appContext, hours, spot.lat, spot.lon)?.let { (h, port) ->
+                hours = h
+                tidePort = port.name
+            }
+        }
+        // Measured sea temperature: shift the model's sea temperature by the difference now.
+        // The sea changes slowly, so the full offset holds for two days and fades by day five.
+        if (sea != null && spot.water == Water.SEA) {
+            val i0 = hours.indexOfLast { it.t <= sea.time }.coerceAtLeast(0)
+            val model0 = hours.getOrNull(i0)?.sst ?: Double.NaN
+            if (!model0.isNaN()) {
+                val dT = sea.temp - model0
+                hours = hours.mapIndexed { i, h ->
+                    val k = i - nowIndex
+                    val w = when {
+                        k <= 48 -> 1.0
+                        k >= 120 -> 0.0
+                        else -> 1.0 - (k - 48) / 72.0
+                    }
+                    if (h.sst.isNaN()) h else h.copy(sst = h.sst + dT * w)
+                }
+            }
+        }
         val lakeTemp = if (spot.water == Water.LAKE) {
             // A lake's surface follows the past week's air temperature, a little warmer in summer.
             hours.filter { it.t in (now - 7 * 86_400_000L)..now && !it.airTemp.isNaN() }.map { it.airTemp }.average().let { if (it.isNaN()) it else it + 1.0 }
         } else Double.NaN
-        return Scored(Model.scoreAll(hours, spot, lakeTemp), nowIndex, hours)
+        return Scored(Model.scoreAll(hours, spot, lakeTemp), nowIndex, hours, tidePort)
     }
 
     // ---- spots ----
@@ -160,8 +194,8 @@ object Repo {
         db.selectedSpot = s.id
         scope.launch {
             val fc = state.value.forecast ?: return@launch
-            val scored = withContext(Dispatchers.Default) { scoreFor(fc, s, state.value.live) }
-            state.update { it.copy(scores = scored.scores, nowIndex = scored.nowIndex, hours = scored.hours, window = Model.nextWindow(scored.scores, System.currentTimeMillis())) }
+            val scored = withContext(Dispatchers.Default) { scoreFor(fc, s, state.value.live, state.value.sea) }
+            state.update { it.copy(scores = scored.scores, nowIndex = scored.nowIndex, hours = scored.hours, tidePort = scored.tidePort, window = Model.nextWindow(scored.scores, System.currentTimeMillis())) }
         }
     }
 

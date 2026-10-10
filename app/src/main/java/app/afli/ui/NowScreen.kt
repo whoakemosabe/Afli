@@ -409,8 +409,8 @@ fun ScoreRing(score: Int, bite: Bite, modifier: Modifier = Modifier) {
     Box(
         modifier.explains(
             t(
-                "Bite score from 0 to 100. Over 60 is great, 35–60 is OK, under 35 is slow. It's a guide, not a promise; logging trips makes it smarter.",
-                "Tökulíkur frá 0 upp í 100. Yfir 60 er frábært, 35–60 ágætt og undir 35 rólegt. Þetta er leiðbeining, ekki loforð; skráðu ferðirnar og spáin batnar.",
+                "Bite score from 0 to 100. Over 60 is great, 35–60 is OK, under 35 is slow. It's a guide, not a promise.",
+                "Tökulíkur frá 0 upp í 100. Yfir 60 er frábært, 35–60 ágætt og undir 35 rólegt. Þetta er leiðbeining, ekki loforð.",
             ),
         ),
         contentAlignment = Alignment.Center,
@@ -782,7 +782,11 @@ private fun buildTiles(s: UiState, spot: Spot, hours: List<Hour>, sel: Int, h: H
                     },
                     style = T.small,
                 )
-                Text(t("A model estimate. Not for navigation.", "Mat úr líkani. Ekki ætlað til siglinga."), style = T.small.copy(color = C.faint))
+                Text(
+                    s.tidePort?.let { t("From the Coast Guard tide tables for $it, corrected from Reykjavík. Weather can shift the sea a little. Not for navigation.", "Úr sjávarfallatöflum Landhelgisgæslunnar fyrir $it, leiðrétt frá Reykjavík. Veður getur hnikað sjávarhæðinni. Ekki ætlað til siglinga.") }
+                        ?: t("A model estimate (no Coast Guard table for this spot). Not for navigation.", "Mat úr líkani (engin tafla Landhelgisgæslunnar fyrir þennan stað). Ekki ætlað til siglinga."),
+                    style = T.small.copy(color = C.faint),
+                )
             },
         )
     }
@@ -806,6 +810,13 @@ private fun buildTiles(s: UiState, spot: Spot, hours: List<Hour>, sel: Int, h: H
                 Sparkline(wv.map { it.wave }, Modifier.fillMaxWidth().height(48.dp), C.foam, marker = wk, floor = 1.0, zeroBased = true)
                 HourAxis(wv.map { it.t }, Modifier.fillMaxWidth().height(14.dp), points = true)
                 Spacer(Modifier.height(8.dp))
+                s.sea?.let { r ->
+                    Text(
+                        t("Measured: ${fmt(r.temp, 1)} °C at ${r.station} (${fmt(r.distanceKm)} km), ${clock(r.time)}. The model is corrected to match.", "Mælt: ${fmt(r.temp, 1)} °C við ${r.station} (${fmt(r.distanceKm)} km) kl. ${clock(r.time)}. Líkanið er leiðrétt í samræmi við mælinguna."),
+                        style = T.small,
+                    )
+                    Spacer(Modifier.height(4.dp))
+                }
                 val happy = Fish.sea.filter { it.temperatureFit(h.sst) >= 1.0 }
                 Text(
                     if (happy.isEmpty()) t("No fish is at its favourite temperature right now.", "Enginn fiskur er við kjörhita núna.")
