@@ -182,7 +182,7 @@ private fun BestDayCard(days: List<Day>, onOpen: (Day) -> Unit) {
             ScoreBadge(b.score, 52.dp)
             Spacer(Modifier.width(14.dp))
             Column(Modifier.weight(1f)) {
-                Text(t("BEST DAY THIS WEEK", "BESTI DAGUR VIKUNNAR"), style = T.label, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                FitText(t("BEST DAY THIS WEEK", "BESTI DAGUR VIKUNNAR"), T.label, min = 10.sp)
                 Text(
                     "${if (best.index == 0) t("Today", "Í dag") else longDay(best.date)} · ${clock(b.t)}",
                     style = T.heading,
@@ -190,7 +190,7 @@ private fun BestDayCard(days: List<Day>, onOpen: (Day) -> Unit) {
                     overflow = TextOverflow.Ellipsis,
                 )
                 Text(
-                    b.best?.let { "${it.name}: " + it.bait.toString() } ?: "–",
+                    b.best?.let { "${it.name} · " + it.baitShort.toString() } ?: "–",
                     style = T.small,
                     maxLines = 2,
                     minLines = 2,
@@ -263,7 +263,7 @@ private fun DayCard(d: Day, spot: Spot, nowLimit: Long?, onOpenNow: (Long) -> Un
         // Day, how sure, safety.
         Row(verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
-                Text(if (d.index == 0) t("Today", "Í dag") else longDay(d.date), style = T.heading, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                FitText(if (d.index == 0) t("Today", "Í dag") else longDay(d.date), T.heading, min = 10.sp)
                 Text(sure ?: t("Good confidence", "Nokkuð áreiðanlegt"), style = T.small.copy(fontSize = 11.sp, color = C.faint), maxLines = 1)
             }
             Spacer(Modifier.width(8.dp))
@@ -291,7 +291,14 @@ private fun DayCard(d: Day, spot: Spot, nowLimit: Long?, onOpenNow: (Long) -> Un
         Spacer(Modifier.height(6.dp))
         Row {
             Text(t("TRY", "PRÓFAÐU"), style = T.label.copy(fontSize = 11.sp), modifier = Modifier.width(72.dp).padding(top = 1.dp), maxLines = 1, softWrap = false)
-            Text(b?.best?.bait?.toString() ?: "–", style = T.small.copy(color = C.foam), maxLines = 2, minLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+            val view = LocalView.current
+            Text(
+                b?.best?.let { "${it.baitShort}  ›" } ?: "–",
+                style = T.small.copy(color = C.brass),
+                modifier = Modifier.weight(1f).clickable(remember { MutableInteractionSource() }, null) {
+                    b?.best?.let { f -> Haptics.tap(view); Tips.explain("${f.name}: ${f.bait}") }
+                },
+            )
         }
         Spacer(Modifier.height(12.dp))
 
@@ -301,31 +308,27 @@ private fun DayCard(d: Day, spot: Spot, nowLimit: Long?, onOpenNow: (Long) -> Un
         Legend(sea)
 
         // The chosen hour, in a fixed-height area so nothing below moves.
-        AnimatedContent(sel, transitionSpec = { fadeIn(tween(160)) togetherWith fadeOut(tween(120)) }, label = "hour", modifier = Modifier.fillMaxWidth().height(96.dp)) { i ->
+        AnimatedContent(sel, transitionSpec = { fadeIn(tween(160)) togetherWith fadeOut(tween(120)) }, label = "hour", modifier = Modifier.fillMaxWidth().height(150.dp)) { i ->
             val h = i?.let { d.scores.getOrNull(it) }
             val hr = i?.let { d.hours.getOrNull(it) }
             if (h == null) {
                 Text(t("Drag or tap along the bars to see each hour.", "Dragðu fingurinn eftir súlunum eða ýttu á þær til að sjá hvern klukkutíma."), style = T.small.copy(color = C.faint), modifier = Modifier.padding(top = 10.dp))
             } else {
-                Column(Modifier.padding(top = 8.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                Column(Modifier.padding(top = 8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text("${clock(h.t)}  ", style = T.heading)
                         Text("${h.score} ${h.bite.label}", style = T.heading.copy(color = C.bite(h.bite)), maxLines = 1)
                         Spacer(Modifier.weight(1f))
                         Dot(C.safety(h.safety))
-                        Text("  ${h.safety.label}", style = T.small, maxLines = 1)
+                        Text("  ${h.safety.label}", style = T.small, maxLines = 1, softWrap = false)
                     }
-                    Text(
-                        listOfNotNull(
-                            h.best?.let { "${it.name} (${it.other})" },
-                            hr?.let { "${windNum(it.wind)} ${Prefs.wind.label} ${compass(it.windDir)}" },
-                            hr?.let { "${tempNum(it.airTemp)} $tempUnit" },
-                        ).joinToString(" · "),
-                        style = T.small,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                    Text(h.reasons.take(3).joinToString(" · ") { it.label }.ifEmpty { "–" }, style = T.small.copy(color = C.faint), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    // Three facts side by side, each with room for its own value.
+                    Row(Modifier.fillMaxWidth()) {
+                        Fact(t("Fish", "Fiskur"), h.best?.name ?: "–", Modifier.weight(1.2f))
+                        Fact(t("Wind", "Vindur"), hr?.let { "${windNum(it.wind)} ${Prefs.wind.label} ${compass(it.windDir)}" } ?: "–", Modifier.weight(1f))
+                        Fact(t("Air", "Lofthiti"), hr?.let { "${tempNum(it.airTemp)} $tempUnit" } ?: "–", Modifier.weight(0.8f))
+                    }
+                    Text(h.reasons.take(3).joinToString(" · ") { it.label }.ifEmpty { "–" }, style = T.small.copy(color = C.faint), maxLines = 2)
                     if (nowLimit != null && h.t <= nowLimit) {
                         Text(
                             t("See this hour in Now  ›", "Sjá þennan tíma í Núna  ›"),
@@ -343,7 +346,7 @@ private fun DayCard(d: Day, spot: Spot, nowLimit: Long?, onOpenNow: (Long) -> Un
 private fun Fact(label: String, value: String, modifier: Modifier) {
     Column(modifier.padding(end = 8.dp)) {
         Text(label.uppercase(app.afli.L.locale), style = T.label.copy(fontSize = 10.sp, lineHeight = 12.sp), maxLines = 1)
-        Text(value, style = T.small.copy(color = C.foam), maxLines = 1, overflow = TextOverflow.Ellipsis)
+        Text(value, style = T.small.copy(color = C.foam), maxLines = 2)
     }
 }
 

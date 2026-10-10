@@ -75,7 +75,7 @@ fun TripContent(trip: Trip, onClose: () -> Unit) {
 
     Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
         Column {
-            Text(spotLabel(trip.spotId, trip.spotName), style = T.title, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            FitText(spotLabel(trip.spotId, trip.spotName), T.title, min = 10.sp)
             Text("${dayWord(trip.start)} ${clock(trip.start)} · ${duration(mins)}", style = T.small)
         }
 
@@ -193,7 +193,7 @@ private fun CatchRow(c: Catch, onSize: (Int?) -> Unit, onRemove: () -> Unit) {
     val f = Fish.byId(c.species)
     Row(Modifier.fillMaxWidth().height(48.dp), verticalAlignment = Alignment.CenterVertically) {
         Column(Modifier.weight(1f)) {
-            Text(f?.name ?: c.species, style = T.heading.copy(fontSize = 15.sp), maxLines = 1, overflow = TextOverflow.Ellipsis)
+            FitText(f?.name ?: c.species, T.heading.copy(fontSize = 15.sp), min = 10.sp)
             Text(clock(c.time), style = T.small.copy(fontSize = 11.sp, color = C.faint))
         }
         StepButton("−") {

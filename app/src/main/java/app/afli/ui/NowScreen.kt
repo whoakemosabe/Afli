@@ -353,7 +353,7 @@ private fun HeroCard(s: UiState, spot: Spot, now: HourScore, sel: Int, hours: Li
             ScoreRing(now.score, now.bite, Modifier.size(128.dp))
             Spacer(Modifier.width(16.dp))
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text(t("BEST FISH", "BESTU FISKARNIR"), style = T.label, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                FitText(t("BEST FISH", "BESTU FISKARNIR"), T.label, min = 9.sp)
                 val ranked = now.perSpecies.filter { it.second > 0 }.take(3).ifEmpty { now.perSpecies.take(3) }
                 for (k in 0 until 3) {
                     val row = ranked.getOrNull(k)
@@ -383,7 +383,13 @@ private fun HeroCard(s: UiState, spot: Spot, now: HourScore, sel: Int, hours: Li
                     }
                 },
             )
-            InfoLine(t("Try", "Prófaðu"), now.best?.bait?.toString() ?: "–", lines = 2)
+            // The short version always fits; tap it for the full advice.
+            InfoLine(
+                t("Try", "Prófaðu"),
+                now.best?.let { "${it.baitShort}  ›" } ?: "–",
+                accent = now.best != null,
+                onClick = now.best?.let { b -> { Haptics.tap(view); Tips.explain("${b.name}: ${b.bait}") } },
+            )
         }
         Spacer(Modifier.height(12.dp))
 
@@ -510,8 +516,8 @@ fun ScoreRing(score: Int, bite: Bite, modifier: Modifier = Modifier) {
 private fun FishChance(sp: Species, v: Int) {
     Row(Modifier.height(36.dp).explains("${sp.name} (${sp.other}). ${sp.fact}\n\n" + t("Try: ", "Prófaðu: ") + sp.bait), verticalAlignment = Alignment.CenterVertically) {
         Column(Modifier.weight(1f)) {
-            Text(sp.name, style = T.heading.copy(fontSize = 15.sp), maxLines = 1, overflow = TextOverflow.Ellipsis)
-            Text(sp.other, style = T.small.copy(fontSize = 11.sp, lineHeight = 13.sp, color = C.faint), maxLines = 1, overflow = TextOverflow.Ellipsis)
+            FitText(sp.name, T.heading.copy(fontSize = 15.sp), min = 11.sp)
+            FitText(sp.other, T.small.copy(fontSize = 11.sp, lineHeight = 13.sp, color = C.faint), min = 9.sp)
         }
         Spacer(Modifier.width(8.dp))
         Bar(v / 100f, C.score(v), Modifier.width(48.dp).height(6.dp))
@@ -555,7 +561,7 @@ private fun WhyColumn(title: String, color: Color, items: List<Reason>, modifier
         Row(verticalAlignment = Alignment.CenterVertically) {
             Box(Modifier.size(8.dp).background(color, CircleShape))
             Spacer(Modifier.width(8.dp))
-            Text(title, style = T.small.copy(fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = color), maxLines = 1, overflow = TextOverflow.Ellipsis)
+            FitText(title, T.small.copy(fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = color), min = 10.sp)
         }
         Spacer(Modifier.height(8.dp))
         for (k in 0 until 3) {
@@ -563,7 +569,7 @@ private fun WhyColumn(title: String, color: Color, items: List<Reason>, modifier
             Row(
                 Modifier
                     .fillMaxWidth()
-                    .height(34.dp)
+                    .height(40.dp)
                     .let {
                         if (r == null) it else it
                             .clip(RoundedCornerShape(10.dp))
@@ -574,7 +580,7 @@ private fun WhyColumn(title: String, color: Color, items: List<Reason>, modifier
             ) {
                 if (r != null) {
                     Text(if (r.good) "+" else "−", style = T.number.copy(color = color, fontSize = 14.sp), modifier = Modifier.width(16.dp))
-                    Text(r.label, style = T.small.copy(color = C.foam), maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+                    Text(r.label, style = T.small.copy(color = C.foam, fontSize = 12.5.sp, lineHeight = 15.sp), maxLines = 2, modifier = Modifier.weight(1f))
                     Text("›", style = T.small.copy(color = C.faint))
                 } else if (k == 0) {
                     Text(t("Nothing", "Ekkert"), style = T.small.copy(color = C.faint), maxLines = 1)
@@ -792,10 +798,10 @@ private fun TileCard(tile: Tile, open: Boolean, modifier: Modifier, onClick: () 
         onClick = onClick,
     ) {
         // Label across the full width; value and picture under it; two fixed lines below.
-        Text(tile.label.uppercase(app.afli.L.locale), style = T.label.copy(fontSize = 11.sp), maxLines = 1, overflow = TextOverflow.Ellipsis)
+        FitText(tile.label.uppercase(app.afli.L.locale), T.label.copy(fontSize = 11.sp), min = 9.sp)
         Spacer(Modifier.height(4.dp))
         Row(Modifier.height(40.dp), verticalAlignment = Alignment.CenterVertically) {
-            Text(tile.value, style = T.title.copy(fontSize = 20.sp), maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+            FitText(tile.value, T.title.copy(fontSize = 20.sp), Modifier.weight(1f), min = 13.sp)
             tile.mini(Modifier.size(40.dp))
         }
         Spacer(Modifier.height(4.dp))
@@ -1105,7 +1111,7 @@ private fun FishCard(sp: Species, v: Int, at: Long?, water: Double, modifier: Mo
     GlassCard(modifier, padding = PaddingValues(16.dp), explain = "${sp.name} (${sp.other}). ${sp.fact}") {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
-                Text(sp.name, style = T.heading, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                FitText(sp.name, T.heading, min = 10.sp)
                 Text(sp.other, style = T.small.copy(color = C.faint), maxLines = 1)
             }
             Box(Modifier.size(44.dp).border(2.dp, C.score(v).copy(alpha = 0.8f), CircleShape), contentAlignment = Alignment.Center) {

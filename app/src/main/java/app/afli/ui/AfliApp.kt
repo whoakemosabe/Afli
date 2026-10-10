@@ -228,7 +228,7 @@ fun AfliApp() {
                         },
                         label = "title",
                     ) { page ->
-                        Text(tabs[page], style = T.title, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+                        FitText(tabs[page], T.title, min = 10.sp)
                     }
                     Text(
                         when {

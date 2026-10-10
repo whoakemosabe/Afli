@@ -28,6 +28,8 @@ data class Species(
     val fact: Tx,
     /** What to fish with, from shore. */
     val bait: Tx,
+    /** The same in a few words, for places with room for one line. */
+    val baitShort: Tx = bait,
 ) {
     /** The name in the app's language; [other] is the name in the other one. */
     val name: String get() = if (L.isl) icelandic else en
@@ -61,6 +63,7 @@ object Fish {
                 "Small spinner or spoon, or mackerel feathers. A strip of fish on the hook works too.",
                 "Lítill spúnn eða makrílslóði. Fiskbiti á krók virkar líka.",
             ),
+            baitShort = Tx("Small spinner or feathers", "Lítill spúnn eða slóði"),
         ),
         Species(
             "thorskur", "Cod", "Þorskur", Water.SEA, lo = 0.0, optLo = 4.0, optHi = 9.0, hi = 14.0, reach = 0.8,
@@ -73,6 +76,7 @@ object Fish {
                 "Bait on the bottom: mussel, worm or a strip of mackerel. Best at dusk and after dark.",
                 "Beita við botninn: kræklingur, maðkur eða makrílbiti. Best í ljósaskiptunum og eftir að dimmir.",
             ),
+            baitShort = Tx("Mussel or worm on the bottom", "Kræklingur eða maðkur við botn"),
         ),
         Species(
             "makrill", "Mackerel", "Makríll", Water.SEA, lo = 4.5, optLo = 8.0, optHi = 14.0, hi = 18.0, reach = 0.9,
@@ -84,6 +88,7 @@ object Fish {
                 "A shiny spoon or mackerel feathers, cast out and wound in fast near the surface.",
                 "Glansandi spúnn eða makrílslóði. Kastaðu út og dragðu hratt inn rétt undir yfirborðinu.",
             ),
+            baitShort = Tx("Spoon or mackerel feathers", "Spúnn eða makrílslóði"),
         ),
         Species(
             "marhnutur", "Shorthorn sculpin", "Marhnútur", Water.SEA, lo = -1.0, optLo = 2.0, optHi = 10.0, hi = 14.0, reach = 1.0,
@@ -95,6 +100,7 @@ object Fish {
                 "Almost any bait dropped down by the seaweed: a bit of fish, shrimp or mussel.",
                 "Nánast hvaða beita sem er við þarann: fiskbiti, rækja eða kræklingur.",
             ),
+            baitShort = Tx("Any bait by the seaweed", "Hvaða beita sem er við þarann"),
         ),
         Species(
             "ysa", "Haddock", "Ýsa", Water.SEA, lo = 2.0, optLo = 4.0, optHi = 10.0, hi = 12.0, reach = 0.25,
@@ -106,6 +112,7 @@ object Fish {
                 "Herring or mussel on small hooks near the bottom.",
                 "Síld eða kræklingur á litlum krókum við botninn.",
             ),
+            baitShort = Tx("Herring or mussel, small hooks", "Síld eða kræklingur, litlir krókar"),
         ),
         Species(
             "skarkoli", "Plaice", "Skarkoli", Water.SEA, lo = 2.0, optLo = 6.0, optHi = 12.0, hi = 16.0, reach = 0.5,
@@ -117,6 +124,7 @@ object Fish {
                 "Worm or mussel on small long-shank hooks over sand. Keep the bait small.",
                 "Maðkur eða kræklingur á litlum leggjalöngum krókum yfir sandi. Hafðu beituna litla.",
             ),
+            baitShort = Tx("Worm on sand, small hooks", "Maðkur á sandi, litlir krókar"),
         ),
         Species(
             "steinbitur", "Atlantic wolffish", "Steinbítur", Water.SEA, lo = -1.0, optLo = 2.0, optHi = 8.0, hi = 11.0, reach = 0.2,
@@ -128,6 +136,7 @@ object Fish {
                 "Mussel and clam on a strong hook, cast out towards rocky ground.",
                 "Kræklingur og skel á sterkum krók. Kastaðu út á grýttan botn.",
             ),
+            baitShort = Tx("Mussel and clam, strong hook", "Kræklingur og skel, sterkur krókur"),
         ),
     )
 
@@ -143,6 +152,7 @@ object Fish {
                 "Small spinner, fly or worm. Rules differ by lake (some are fly only), so check first.",
                 "Lítill spúnn, fluga eða maðkur. Reglur eru misjafnar eftir vötnum (sum leyfa bara flugu), svo kannaðu fyrst.",
             ),
+            baitShort = Tx("Small spinner, fly or worm", "Lítill spúnn, fluga eða maðkur"),
         ),
         Species(
             "urridi", "Brown trout", "Urriði", Water.LAKE, lo = 2.0, optLo = 6.0, optHi = 14.0, hi = 18.0, reach = 1.0,
@@ -155,6 +165,7 @@ object Fish {
                 "Spinner, streamer fly or worm. Rules differ by lake, so check first.",
                 "Spúnn, straumfluga eða maðkur. Reglur eru misjafnar eftir vötnum, svo kannaðu fyrst.",
             ),
+            baitShort = Tx("Spinner, streamer or worm", "Spúnn, straumfluga eða maðkur"),
         ),
     )
 

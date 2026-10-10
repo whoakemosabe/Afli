@@ -72,7 +72,7 @@ private fun SpotRow(sp: Spot, s: UiState, onShow: (Spot) -> Unit) {
                         BasicTextField(name, onValueChange = { name = it.take(40) }, singleLine = true, textStyle = T.heading, cursorBrush = SolidColor(C.brass))
                     }
                 } else {
-                    Text(sp.label, style = T.heading, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    FitText(sp.label, T.heading, min = 10.sp)
                 }
                 Text(
                     listOfNotNull(

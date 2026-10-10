@@ -169,7 +169,7 @@ private fun CatchButton(name: String, n: Int, explain: String, modifier: Modifie
         m.pressable(press, explain, scaleBy = 0f, haptic = false, onClick = onClick).height(44.dp).padding(horizontal = 14.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text(name, style = T.small.copy(color = if (n > 0) C.brass else C.foam), maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+        FitText(name, T.small.copy(color = if (n > 0) C.brass else C.foam), Modifier.weight(1f), min = 10.sp)
         Text(if (n > 0) "×$n" else "", style = T.number.copy(color = C.brass), maxLines = 1, softWrap = false, modifier = Modifier.width(32.dp), textAlign = androidx.compose.ui.text.style.TextAlign.End)
     }
 }
@@ -180,7 +180,7 @@ private fun TripCard(trip: Trip, onOpen: (String) -> Unit) {
     GlassCard(Modifier.fillMaxWidth(), explain = t("Tap to see the trip, set fish sizes, add a note or photos.", "Ýttu til að sjá ferðina, skrá stærð fiska, bæta við athugasemd eða myndum."), onClick = { onOpen(trip.id) }) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
-                Text(spotLabel(trip.spotId, trip.spotName), style = T.heading, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+                FitText(spotLabel(trip.spotId, trip.spotName), T.heading, min = 10.sp)
                 Text("${dayWord(trip.start)} ${clock(trip.start)} · ${duration(mins)}", style = T.small, maxLines = 1)
             }
             Text(if (trip.catches.isEmpty()) t("Blank", "Ekkert") else t("${trip.catches.size} fish", if (oneIs(trip.catches.size)) "${trip.catches.size} fiskur" else "${trip.catches.size} fiskar"), style = T.heading.copy(color = if (trip.catches.isEmpty()) C.mist else C.good))
@@ -203,7 +203,7 @@ private fun TripCard(trip: Trip, onOpen: (String) -> Unit) {
             if (trip.photos.isNotEmpty()) t("${trip.photos.size} photos", "${trip.photos.size} myndir") else null,
             if (trip.note.isNotBlank()) "“${trip.note.take(40)}${if (trip.note.length > 40) "…" else ""}”" else null,
         )
-        if (extras.isNotEmpty()) Text(extras.joinToString(" · "), style = T.small.copy(color = C.faint), maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+        if (extras.isNotEmpty()) FitText(extras.joinToString(" · "), T.small.copy(color = C.faint), min = 10.sp)
     }
 }
 
@@ -322,7 +322,7 @@ private fun Big(label: String, value: String, modifier: Modifier) {
 private fun StatLine(label: String, value: String) {
     Row(Modifier.fillMaxWidth().padding(vertical = 2.dp)) {
         Text(label.uppercase(app.afli.L.locale), style = T.label.copy(fontSize = 10.sp), maxLines = 1, modifier = Modifier.width(110.dp).padding(top = 2.dp))
-        Text(value, style = T.small.copy(color = C.foam), maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+        Text(value, style = T.small.copy(color = C.foam), maxLines = 2)
     }
 }
 

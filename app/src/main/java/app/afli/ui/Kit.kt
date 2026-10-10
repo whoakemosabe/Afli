@@ -267,6 +267,22 @@ val Rim = Brush.linearGradient(
     1f to Color(0xB3D8B56A),
 )
 
+/**
+ * One line of text that shrinks (down to [min]) rather than getting cut off, for tight spots
+ * like fish names and tile values. Only shrinks when it has to.
+ */
+@Composable
+fun FitText(text: String, style: TextStyle, modifier: Modifier = Modifier, min: androidx.compose.ui.unit.TextUnit = 10.sp) {
+    androidx.compose.foundation.text.BasicText(
+        text,
+        modifier = modifier,
+        style = style,
+        maxLines = 1,
+        softWrap = false,
+        autoSize = androidx.compose.foundation.text.TextAutoSize.StepBased(minFontSize = min, maxFontSize = style.fontSize, stepSize = 0.5.sp),
+    )
+}
+
 @Composable
 fun SectionLabel(text: String, modifier: Modifier = Modifier) {
     // A short brass bar, the title in clear caps, and a hairline that fades out to the right.
