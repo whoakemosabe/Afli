@@ -34,7 +34,9 @@ class MainActivity : ComponentActivity() {
         app.afli.update.BiteAlerts.sync(this)
         app.afli.update.TripNotice.update(this)
         UpdateWatch.waitingVersion.value = UpdateWatch.waiting(this)
-        handleIntent(intent)
+        // Only a fresh launch acts on a notification tap; a rotation or a launch from recents
+        // would otherwise replay it.
+        if (savedInstanceState == null && (intent.flags and Intent.FLAG_ACTIVITY_LAUNCHED_FROM_HISTORY) == 0) handleIntent(intent)
         setContent {
             // No stretch overscroll: it fights the glass and the header fade.
             CompositionLocalProvider(LocalOverscrollFactory provides null) {
@@ -53,6 +55,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
+        setIntent(intent)
         handleIntent(intent)
     }
 
@@ -67,6 +70,11 @@ class MainActivity : ComponentActivity() {
         val jump = intent?.getLongExtra(app.afli.update.BiteAlerts.EXTRA_JUMP, 0L) ?: 0L
         if (jump > 0) {
             intent?.removeExtra(app.afli.update.BiteAlerts.EXTRA_JUMP)
+            // Show the spot the alert was about, then its hour.
+            intent?.getStringExtra(app.afli.update.BiteAlerts.EXTRA_SPOT)?.let { id ->
+                intent.removeExtra(app.afli.update.BiteAlerts.EXTRA_SPOT)
+                Repo.state.value.spots.firstOrNull { it.id == id }?.let { Repo.choose(this, it) }
+            }
             app.afli.ui.Scrub.jump = jump
         }
         if (intent?.getBooleanExtra(UpdateWatch.EXTRA_OPEN_UPDATES, false) == true) {

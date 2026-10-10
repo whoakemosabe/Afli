@@ -20,6 +20,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
@@ -73,7 +74,12 @@ fun ShareContent(trip: Trip) {
         GlassButton(t("Share", "Deila"), accent = C.brass, modifier = Modifier.fillMaxWidth(), onClick = {
             Haptics.confirm(view)
             scope.launch {
-                val bmp = layer.toImageBitmap().asAndroidBitmap()
+              runCatching {
+                // Navy behind the rounded corners, so chat apps don't show them black or white.
+                val card = layer.toImageBitmap().asAndroidBitmap()
+                val bmp = android.graphics.Bitmap.createBitmap(card.width, card.height, android.graphics.Bitmap.Config.ARGB_8888).also { out ->
+                    android.graphics.Canvas(out).apply { drawColor(android.graphics.Color.rgb(7, 18, 31)); drawBitmap(card, 0f, 0f, null) }
+                }
                 val file = withContext(Dispatchers.IO) {
                     File(context.cacheDir, "shares").apply { mkdirs() }.let { dir ->
                         File(dir, "afli-${trip.id.take(8)}.png").also { f -> f.outputStream().use { bmp.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, it) } }
@@ -81,7 +87,8 @@ fun ShareContent(trip: Trip) {
                 }
                 val uri = FileProvider.getUriForFile(context, "${context.packageName}.files", file)
                 val send = Intent(Intent.ACTION_SEND).setType("image/png").putExtra(Intent.EXTRA_STREAM, uri).addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                runCatching { context.startActivity(Intent.createChooser(send, t("Share catch", "Deila afla"))) }
+                context.startActivity(Intent.createChooser(send, t("Share catch", "Deila afla")))
+              }.onFailure { Tips.explain(t("Couldn't make the picture. Try again.", "Náði ekki að búa til myndina. Reyndu aftur.")) }
             }
         })
     }
@@ -89,8 +96,7 @@ fun ShareContent(trip: Trip) {
 
 @Composable
 private fun CatchCard(trip: Trip) {
-    val photo = trip.photos.firstOrNull()
-    val img: ImageBitmap? = remember(photo) { photo?.let { runCatching { BitmapFactory.decodeFile(Repo.photoFile(it).path)?.asImageBitmap() }.getOrNull() } }
+    val img by rememberPhoto(trip.photos.firstOrNull(), 1200)
     val mins = (((trip.end ?: System.currentTimeMillis()) - trip.start) / 60_000).toInt()
     val counts = trip.catches.groupBy { it.species }.entries.sortedByDescending { it.value.size }
     val biggest = trip.catches.filter { it.sizeCm != null }.maxByOrNull { it.sizeCm!! }
@@ -103,14 +109,16 @@ private fun CatchCard(trip: Trip) {
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text("AFLI", style = T.label.copy(fontSize = 14.sp, letterSpacing = 3.sp, color = C.brass), modifier = Modifier.weight(1f))
-            Text("${dayWord(trip.start)} ${clock(trip.start)}", style = T.small.copy(color = C.mist))
+            // A real date: the picture lives on long after "today".
+            Text(java.time.format.DateTimeFormatter.ofPattern(if (app.afli.L.isl) "d. MMM yyyy" else "d MMM yyyy", app.afli.L.locale).format(java.time.Instant.ofEpochMilli(trip.start).atZone(java.time.ZoneId.systemDefault())) + " · " + clock(trip.start), style = T.small.copy(color = C.mist))
         }
         Spacer(Modifier.height(12.dp))
         Box(
             Modifier.fillMaxWidth().weight(1f).clip(RoundedCornerShape(18.dp)).background(Color(0x22EAF4F8)),
             contentAlignment = Alignment.Center,
         ) {
-            if (img != null) Image(img, null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
+            val pic = img
+            if (pic != null) Image(pic, null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
             else Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 FishGlyph(C.brass, Modifier.size(120.dp))
                 Text(fishCount(trip.catches.size), style = T.title.copy(fontSize = 34.sp, color = C.foam))

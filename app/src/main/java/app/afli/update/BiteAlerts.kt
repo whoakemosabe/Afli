@@ -43,6 +43,7 @@ object BiteAlerts {
     private const val ID = 7
     private const val WORK = "afli-bite-alerts"
     const val EXTRA_JUMP = "app.afli.extra.JUMP_TO"
+    const val EXTRA_SPOT = "app.afli.extra.SPOT"
     const val GREAT = 60
 
     fun createChannel(context: Context) {
@@ -77,22 +78,22 @@ object BiteAlerts {
         val now = System.currentTimeMillis()
         val w = Model.nextWindow(scores, now, 12) ?: return
         if (w.peak < GREAT) return
-        val key = "${spot.id}@${w.start / 3_600_000L}"
+        // One alert per stretch: skip while we're still inside the last one we sent for this spot.
         val p = context.getSharedPreferences("afli", Context.MODE_PRIVATE)
-        if (p.getString("lastBiteAlert", "") == key) return
-        p.edit().putString("lastBiteAlert", key).apply()
+        if (p.getString("lastBiteSpot", "") == spot.id && w.start < p.getLong("lastBiteEnd", 0L)) return
+        p.edit().putString("lastBiteSpot", spot.id).putLong("lastBiteEnd", w.end).apply()
         val best = scores.firstOrNull { it.t >= w.start && it.score == w.peak }?.best
-        post(context, spot.label, w.start, w.end, w.peak, best?.name)
+        post(context, spot.id, spot.label, w.start, w.end, w.peak, best?.name)
     }
 
-    private fun post(context: Context, spotName: String, start: Long, end: Long, peak: Int, fish: String?) {
+    private fun post(context: Context, spotId: String, spotName: String, start: Long, end: Long, peak: Int, fish: String?) {
         if (Build.VERSION.SDK_INT >= 33 &&
             ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
         ) return
         createChannel(context)
         val open = PendingIntent.getActivity(
             context, 7,
-            Intent(context, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP).putExtra(EXTRA_JUMP, start),
+            Intent(context, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP).putExtra(EXTRA_JUMP, start).putExtra(EXTRA_SPOT, spotId),
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
         )
         val day = dayWord(start).lowercase(app.afli.L.locale)

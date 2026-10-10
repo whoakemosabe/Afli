@@ -40,6 +40,8 @@ data class Trip(
     val note: String = "",
     /** Photo file names in the app's photos folder. */
     val photos: List<String> = emptyList(),
+    /** The two fish on the notification's buttons, fixed at the start so they never swap places. */
+    val quick: List<String> = emptyList(),
 )
 
 /**
@@ -84,10 +86,36 @@ class Store(context: Context) {
 
     private val spotsFile get() = File(dir, "spots.json")
 
+    /**
+     * Files are written whole into a new file and swapped in, so a phone dying mid-save can never
+     * leave half a log. A file that can't be read is set aside (renamed, not deleted) rather than
+     * quietly treated as empty, so nothing he logged is ever overwritten.
+     */
+    private fun writeSafely(f: File, text: String) {
+        val af = androidx.core.util.AtomicFile(f)
+        val out = af.startWrite()
+        try {
+            out.write(text.toByteArray())
+            af.finishWrite(out)
+        } catch (e: Exception) {
+            af.failWrite(out)
+            throw e
+        }
+    }
+
+    private fun readArray(f: File): JSONArray {
+        val af = androidx.core.util.AtomicFile(f)
+        if (!f.exists() && !File(f.path + ".bak").exists()) return JSONArray()
+        return runCatching { JSONArray(String(af.readFully())) }.getOrElse {
+            runCatching { f.renameTo(File(dir, f.nameWithoutExtension + ".unreadable-" + System.currentTimeMillis() + ".json")) }
+            JSONArray()
+        }
+    }
+
     /** Spots he has saved or corrected, merged over the built-in defaults by id. */
     fun spots(): List<Spot> {
-        val saved = runCatching { JSONArray(spotsFile.readText()) }.getOrNull()
-        val mine = saved?.let { a -> (0 until a.length()).map { spotFrom(a.getJSONObject(it)) } } ?: emptyList()
+        val saved = readArray(spotsFile)
+        val mine = (0 until saved.length()).mapNotNull { runCatching { spotFrom(saved.getJSONObject(it)) }.getOrNull() }
         val ids = mine.map { it.id }.toSet()
         return mine + defaults.filter { it.id !in ids }
     }
@@ -96,7 +124,7 @@ class Store(context: Context) {
         val all = spots().filter { it.id != spot.id } + spot
         val a = JSONArray()
         all.filter { !it.builtIn || it != defaults.firstOrNull { d -> d.id == it.id } }.forEach { a.put(spotJson(it)) }
-        spotsFile.writeText(a.toString())
+        writeSafely(spotsFile, a.toString())
     }
 
     /** Renames a spot (built-in ones too; the name you give wins over the built-in name). */
@@ -108,7 +136,7 @@ class Store(context: Context) {
     fun deleteSpot(id: String) {
         val a = JSONArray()
         spots().filter { it.id != id && !(it.builtIn && it == defaults.firstOrNull { d -> d.id == it.id }) }.forEach { a.put(spotJson(it)) }
-        spotsFile.writeText(a.toString())
+        writeSafely(spotsFile, a.toString())
         if (selectedSpot == id) selectedSpot = null
     }
 
@@ -140,7 +168,7 @@ class Store(context: Context) {
     private val tripsFile get() = File(dir, "trips.json")
 
     fun trips(): List<Trip> {
-        val a = runCatching { JSONArray(tripsFile.readText()) }.getOrNull() ?: return emptyList()
+        val a = readArray(tripsFile)
         return (0 until a.length()).mapNotNull { runCatching { tripFrom(a.getJSONObject(it)) }.getOrNull() }
             .sortedByDescending { it.start }
     }
@@ -149,7 +177,7 @@ class Store(context: Context) {
         val all = trips().filter { it.id != trip.id } + trip
         val a = JSONArray()
         all.sortedBy { it.start }.forEach { a.put(tripJson(it)) }
-        tripsFile.writeText(a.toString())
+        writeSafely(tripsFile, a.toString())
     }
 
     // ---- the last forecast for each spot, so Afli opens instantly and works without signal ----
@@ -180,19 +208,20 @@ class Store(context: Context) {
 
     /** Deletes every trip. */
     fun clearTrips() {
-        tripsFile.delete()
+        androidx.core.util.AtomicFile(tripsFile).delete()
+        photoDir.listFiles()?.forEach { it.delete() }
     }
 
     /** Forgets the spots saved from trips; the built-in harbours and lakes stay. */
     fun forgetSpots() {
-        spotsFile.delete()
+        androidx.core.util.AtomicFile(spotsFile).delete()
         selectedSpot = null
     }
 
     fun deleteTrip(id: String) {
         val a = JSONArray()
         trips().filter { it.id != id }.sortedBy { it.start }.forEach { a.put(tripJson(it)) }
-        tripsFile.writeText(a.toString())
+        writeSafely(tripsFile, a.toString())
     }
 
     private fun tripJson(t: Trip): JSONObject {
@@ -203,6 +232,7 @@ class Store(context: Context) {
             .put("lat", t.lat).put("lon", t.lon).put("start", t.start).put("end", t.end ?: JSONObject.NULL)
             .put("catches", c)
             .put("note", t.note)
+            .put("quick", JSONArray().also { a -> t.quick.forEach { a.put(it) } })
             .put("photos", JSONArray().also { a -> t.photos.forEach { a.put(it) } })
             .put("snapshot", t.snapshot?.let { s ->
                 JSONObject().put("score", s.score).put("wind", s.wind.orNull()).put("windDir", s.windDir.orNull())
@@ -234,6 +264,7 @@ class Store(context: Context) {
             },
             note = o.optString("note", ""),
             photos = o.optJSONArray("photos")?.let { a -> (0 until a.length()).map { a.getString(it) } } ?: emptyList(),
+            quick = o.optJSONArray("quick")?.let { a -> (0 until a.length()).map { a.getString(it) } } ?: emptyList(),
         )
     }
 

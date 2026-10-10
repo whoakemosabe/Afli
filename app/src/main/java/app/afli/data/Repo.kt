@@ -68,6 +68,7 @@ object Repo {
 
     private lateinit var appContext: Context
 
+    @Synchronized
     fun init(context: Context) {
         if (::db.isInitialized) return
         appContext = context.applicationContext
@@ -238,17 +239,30 @@ object Repo {
 
     fun startTrip(context: Context) {
         val st = state.value
-        val spot = st.spot ?: return
+        // One trip at a time (a double tap mustn't start two).
+        if (st.activeTrip != null) return
         val gps = st.gps
-        var target = spot
+        // Start where he actually is: if the spot on screen is far from his GPS position (he
+        // was looking at another spot), the trip goes to a new spot here instead.
+        var spot = st.spot
+        if (gps != null && (spot == null || Store.distanceM(gps.latitude, gps.longitude, spot.lat, spot.lon) > 300.0)) {
+            spot = db.spotNear(gps.latitude, gps.longitude)
+                ?: Spot("here", "Here", gps.latitude, gps.longitude)
+        }
+        spot = spot ?: db.spots().first()
+        var target: Spot = spot
         // Trips build spots: a new place becomes a saved spot named by the phone.
-        if (spot.id == "here") {
-            target = spot.copy(id = "spot-" + UUID.randomUUID().toString().take(8), lat = gps?.latitude ?: spot.lat, lon = gps?.longitude ?: spot.lon)
+        if (target.id == "here") {
+            target = target.copy(id = "spot-" + UUID.randomUUID().toString().take(8), lat = gps?.latitude ?: target.lat, lon = gps?.longitude ?: target.lon)
             db.saveSpot(target)
         }
-        val now = st.now
-        val h = st.hours.getOrNull(st.nowIndex)
-        val h3 = st.hours.getOrNull(st.nowIndex - 3)
+        // Conditions are only saved when there's a forecast for this spot; never a made-up 0.
+        val forecastHere = st.spot?.id == spot.id || (st.spot?.id == "here" && spot.id == "here")
+        val now = if (forecastHere) st.now else null
+        val h = if (forecastHere) st.hours.getOrNull(st.nowIndex) else null
+        val h3 = if (forecastHere) st.hours.getOrNull(st.nowIndex - 3) else null
+        val fish = Fish.forWater(target.water).map { it.id }
+        val likely = now?.perSpecies?.map { it.first.id }.orEmpty()
         val trip = Trip(
             id = UUID.randomUUID().toString(),
             spotId = target.id,
@@ -258,30 +272,57 @@ object Repo {
             start = System.currentTimeMillis(),
             end = null,
             catches = emptyList(),
-            snapshot = Snapshot(
-                score = now?.score ?: 0,
+            snapshot = if (now == null) null else Snapshot(
+                score = now.score,
                 wind = h?.wind ?: Double.NaN,
                 windDir = h?.windDir ?: Double.NaN,
                 pressure = h?.pressure ?: Double.NaN,
                 pressure3h = h3?.pressure ?: Double.NaN,
                 sst = h?.sst ?: Double.NaN,
                 wave = h?.wave ?: Double.NaN,
-                tideFlow = now?.tideFlow ?: Double.NaN,
-                sunElevation = now?.sunElevation ?: Astro.sunElevation(System.currentTimeMillis(), target.lat, target.lon),
+                tideFlow = now.tideFlow ?: Double.NaN,
+                sunElevation = now.sunElevation,
             ),
+            quick = (likely + fish).filter { it in fish }.distinct().take(2),
         )
         db.saveTrip(trip)
-        state.update { it.copy(activeTrip = trip, trips = db.trips(), spots = db.spots(), spot = target, lastEnded = null) }
+        // A new spot gets the phone's place name as soon as the geocoder answers.
+        if (target.name == "Here" && gps != null) {
+            val newId = target.id
+            scope.launch {
+                val name = runCatching { Locator.nameFor(appContext, gps.latitude, gps.longitude) }.getOrNull()
+                if (!name.isNullOrBlank() && name != "Here") {
+                    db.renameSpot(newId, name)
+                    state.value.activeTrip?.takeIf { it.spotId == newId }?.let { db.saveTrip(it.copy(spotName = name)) }
+                    state.update { st2 -> st2.copy(spots = db.spots(), trips = db.trips(), activeTrip = st2.activeTrip?.let { a -> if (a.spotId == newId) a.copy(spotName = name) else a }, spot = st2.spot?.let { sp -> if (sp.id == newId) sp.copy(name = name) else sp }) }
+                    app.afli.update.TripNotice.update(appContext)
+                }
+            }
+        }
+        val moved = st.spot?.id != target.id
+        state.update { (if (moved) it.cleared() else it).copy(activeTrip = trip, trips = db.trips(), spots = db.spots(), spot = target, lastEnded = null) }
+        if (moved) refresh(context, useGps = false)
         app.afli.update.TripNotice.update(appContext)
     }
 
-    fun addCatch(speciesId: String) {
-        val t = state.value.activeTrip ?: return
-        if (Fish.byId(speciesId) == null) return
+    /** Ends-by-mistake: puts the just-ended trip back on. */
+    fun resumeTrip() {
+        val t = state.value.lastEnded ?: return
+        if (state.value.activeTrip != null) return
+        val back = t.copy(end = null)
+        db.saveTrip(back)
+        state.update { it.copy(activeTrip = back, trips = db.trips(), lastEnded = null) }
+        app.afli.update.TripNotice.update(appContext)
+    }
+
+    fun addCatch(speciesId: String): Boolean {
+        val t = state.value.activeTrip ?: return false
+        if (Fish.byId(speciesId) == null) return false
         val updated = t.copy(catches = t.catches + Catch(speciesId, System.currentTimeMillis()))
         db.saveTrip(updated)
         state.update { it.copy(activeTrip = updated, trips = db.trips()) }
         app.afli.update.TripNotice.update(appContext)
+        return true
     }
 
     fun undoCatch() {
@@ -304,7 +345,8 @@ object Repo {
 
     fun clearTrips() {
         db.clearTrips()
-        state.update { it.copy(trips = emptyList(), activeTrip = null) }
+        state.update { it.copy(trips = emptyList(), activeTrip = null, lastEnded = null, lastDeleted = null) }
+        app.afli.update.TripNotice.update(appContext)
     }
 
     fun forgetSpots(context: Context) {
@@ -316,21 +358,34 @@ object Repo {
     fun deleteTrip(id: String) {
         val gone = db.trips().firstOrNull { it.id == id }
         db.deleteTrip(id)
-        state.update { it.copy(trips = db.trips(), activeTrip = if (it.activeTrip?.id == id) null else it.activeTrip, lastDeleted = gone) }
+        // A second delete inside the undo window: the first is gone for good, photos too.
+        state.value.lastDeleted?.let { prev -> prev.photos.forEach { java.io.File(db.photoDir, it).delete() } }
+        state.update { it.copy(trips = db.trips(), activeTrip = if (it.activeTrip?.id == id) null else it.activeTrip, lastDeleted = gone, lastEnded = if (it.lastEnded?.id == id) null else it.lastEnded) }
+        app.afli.update.TripNotice.update(appContext)
         rescore()
+        // Undo lasts six seconds, whichever screen he's on.
+        undoJob?.cancel()
+        undoJob = scope.launch {
+            kotlinx.coroutines.delay(6_000)
+            forgetDeleted()
+        }
     }
 
     /** Puts back the trip that was just deleted. */
     fun undoDelete() {
         val t = state.value.lastDeleted ?: return
         db.saveTrip(t)
+        undoJob?.cancel()
         state.update { it.copy(trips = db.trips(), lastDeleted = null, activeTrip = if (t.end == null) t else it.activeTrip) }
+        app.afli.update.TripNotice.update(appContext)
         rescore()
     }
 
     fun dismissSummary() {
         state.update { it.copy(lastEnded = null) }
     }
+
+    private var undoJob: Job? = null
 
     fun forgetDeleted() {
         val t = state.value.lastDeleted ?: return
@@ -353,6 +408,15 @@ object Repo {
             updateTrip(trip.copy(photos = trip.photos + name))
         }
     }
+
+    /** A full-size photo the camera saved straight into the photos folder. */
+    fun addPhotoFile(tripId: String, name: String) {
+        val t = state.value.trips.firstOrNull { it.id == tripId } ?: state.value.activeTrip?.takeIf { it.id == tripId } ?: return
+        updateTrip(t.copy(photos = t.photos + name))
+    }
+
+    /** A fresh file for the camera to write a trip photo into. */
+    fun newPhotoFile(tripId: String): java.io.File = java.io.File(db.photoDir, "$tripId-${System.currentTimeMillis()}.jpg")
 
     fun removePhoto(trip: Trip, name: String) {
         java.io.File(db.photoDir, name).delete()
@@ -382,7 +446,8 @@ object Repo {
         val spot = st.spot ?: return
         scope.launch {
             val scored = withContext(Dispatchers.Default) { scoreFor(fc, spot, st.live, st.sea) }
-            state.update { it.copy(scores = scored.scores, nowIndex = scored.nowIndex, hours = scored.hours, tidePort = scored.tidePort, window = Model.nextWindow(scored.scores, System.currentTimeMillis())) }
+            // Only if he's still looking at the same spot and forecast.
+            state.update { if (it.spot?.id != spot.id || it.forecast !== fc) it else it.copy(scores = scored.scores, nowIndex = scored.nowIndex, hours = scored.hours, tidePort = scored.tidePort, window = Model.nextWindow(scored.scores, System.currentTimeMillis())) }
         }
     }
 

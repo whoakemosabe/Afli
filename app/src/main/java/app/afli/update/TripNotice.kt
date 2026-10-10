@@ -38,7 +38,7 @@ import java.util.concurrent.TimeUnit
  * count updates. If a trip is still running after 4 hours, a reminder asks if he's still fishing.
  */
 object TripNotice {
-    private const val CH = "trip"
+    private const val CH = "trip_live"
     private const val CH_REMIND = "trip_remind"
     private const val ID = 11
     private const val ID_REMIND = 12
@@ -49,7 +49,10 @@ object TripNotice {
 
     private fun channels(context: Context) {
         val nm = context.getSystemService(NotificationManager::class.java) ?: return
-        nm.createNotificationChannel(NotificationChannel(CH, t("Trip in progress", "Ferð í gangi"), NotificationManager.IMPORTANCE_LOW).apply {
+        nm.createNotificationChannel(NotificationChannel(CH, t("Trip in progress", "Ferð í gangi"), NotificationManager.IMPORTANCE_DEFAULT).apply {
+            // Default importance so it shows on the lock screen with its buttons; it never makes a sound.
+            setSound(null, null)
+            enableVibration(false)
             description = t("Log fish from the lock screen while you're fishing", "Skráðu fiska af lásskjánum á meðan þú veiðir")
             setShowBadge(false)
         })
@@ -61,13 +64,11 @@ object TripNotice {
     private fun allowed(context: Context) = Build.VERSION.SDK_INT < 33 ||
         ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
 
-    /** The two fish to offer: what he's caught most on this trip, then the likeliest right now. */
+    /** The two fish on the buttons: fixed when the trip started, so they never swap places. */
     private fun quickFish(trip: Trip): List<String> {
+        if (trip.quick.isNotEmpty()) return trip.quick
         val water = Repo.state.value.spots.firstOrNull { it.id == trip.spotId }?.water ?: Water.SEA
-        val caught = trip.catches.groupBy { it.species }.entries.sortedByDescending { it.value.size }.map { it.key }
-        val likely = Repo.state.value.now?.perSpecies?.map { it.first.id }.orEmpty()
-        val all = Fish.forWater(water).map { it.id }
-        return (caught + likely + all).filter { it in all }.distinct().take(2)
+        return Fish.forWater(water).map { it.id }.take(2)
     }
 
     /** Shows or refreshes the notification for the running trip, or clears it if none. */
@@ -77,6 +78,7 @@ object TripNotice {
         val nm = NotificationManagerCompat.from(context)
         if (trip == null) {
             nm.cancel(ID)
+            nm.cancel(ID_REMIND)
             WorkManager.getInstance(context).cancelUniqueWork(REMIND)
             return
         }
@@ -86,13 +88,11 @@ object TripNotice {
             context, 21, Intent(context, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP).putExtra(EXTRA_OPEN_LOG, true),
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
         )
-        val mins = ((System.currentTimeMillis() - trip.start) / 60_000).toInt()
         val n = trip.catches.size
         val b = NotificationCompat.Builder(context, CH)
             .setSmallIcon(R.drawable.ic_stat_fish)
             .setContentTitle(t("Fishing at ", "Á veiðum: ") + spotLabel(trip.spotId, trip.spotName))
-            .setContentText(t("$n fish · started ", "$n fiskar · byrjaði ") + app.afli.ui.clock(trip.start))
-            .setSubText(duration(mins))
+            .setContentText(app.afli.ui.fishCount(n) + t(" · started ", " · byrjaði ") + app.afli.ui.clock(trip.start))
             .setWhen(trip.start)
             .setUsesChronometer(true)
             .setOngoing(true)
@@ -122,14 +122,19 @@ object TripNotice {
     private fun scheduleReminder(context: Context, trip: Trip) {
         val due = trip.start + 4 * 3_600_000L - System.currentTimeMillis()
         if (due <= 0) return
-        val req = OneTimeWorkRequestBuilder<TripReminderWorker>().setInitialDelay(due, TimeUnit.MILLISECONDS).build()
-        WorkManager.getInstance(context).enqueueUniqueWork(REMIND, ExistingWorkPolicy.KEEP, req)
+        val req = OneTimeWorkRequestBuilder<TripReminderWorker>()
+            .setInitialDelay(due, TimeUnit.MILLISECONDS)
+            .setInputData(androidx.work.workDataOf("trip" to trip.id))
+            .build()
+        // Replace, so a new trip never inherits an old trip's reminder time.
+        WorkManager.getInstance(context).enqueueUniqueWork(REMIND, ExistingWorkPolicy.REPLACE, req)
     }
 
-    fun remind(context: Context) {
+    fun remind(context: Context, tripId: String?) {
         Repo.init(context)
         loadLang(context)
         val trip = Repo.state.value.activeTrip ?: return
+        if (tripId != null && trip.id != tripId) return
         if (!allowed(context)) return
         channels(context)
         val open = PendingIntent.getActivity(
@@ -165,8 +170,7 @@ class TripActionReceiver : BroadcastReceiver() {
         app.afli.Prefs.load(context)
         when (intent.action) {
             TripNotice.ACTION_CATCH -> intent.getStringExtra(TripNotice.EXTRA_SPECIES)?.let {
-                Repo.addCatch(it)
-                TripNotice.buzz(context)
+                if (Repo.addCatch(it)) TripNotice.buzz(context)
             }
             TripNotice.ACTION_END -> {
                 Repo.endTrip()
@@ -179,7 +183,7 @@ class TripActionReceiver : BroadcastReceiver() {
 
 class TripReminderWorker(context: Context, params: WorkerParameters) : CoroutineWorker(context, params) {
     override suspend fun doWork(): Result {
-        runCatching { TripNotice.remind(applicationContext) }
+        runCatching { TripNotice.remind(applicationContext, inputData.getString("trip")) }
         return Result.success()
     }
 }

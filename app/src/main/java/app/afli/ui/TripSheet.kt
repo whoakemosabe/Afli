@@ -58,20 +58,37 @@ private val typicalCm = mapOf(
  * or + to set it), fish he forgot to log, a note, photos, and delete (with undo in the log).
  */
 @Composable
-fun TripContent(trip: Trip, onShare: () -> Unit, onClose: () -> Unit) {
+fun TripContent(trip: Trip, s: app.afli.data.UiState, onShare: () -> Unit, onClose: () -> Unit) {
     val view = LocalView.current
     var confirmDelete by remember(trip.id) { mutableStateOf(false) }
     var adding by remember(trip.id) { mutableStateOf(false) }
     var note by remember(trip.id) { mutableStateOf(trip.note) }
-    val takePhoto = rememberLauncherForActivityResult(ActivityResultContracts.TakePicturePreview()) { bmp ->
-        if (bmp != null) {
-            Repo.addPhoto(trip, bmp)
+    // Full-size photos straight from the camera into Afli's own folder.
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val pending = remember { arrayOfNulls<java.io.File>(1) }
+    val takePhoto = rememberLauncherForActivityResult(ActivityResultContracts.TakePicture()) { ok ->
+        val f = pending[0]
+        if (ok && f != null && f.exists() && f.length() > 0) {
+            Repo.addPhotoFile(trip.id, f.name)
             Haptics.confirm(view)
-        }
+        } else f?.delete()
+        pending[0] = null
+    }
+    fun shoot() {
+        val f = Repo.newPhotoFile(trip.id)
+        pending[0] = f
+        val uri = androidx.core.content.FileProvider.getUriForFile(context, "${context.packageName}.files", f)
+        runCatching { takePhoto.launch(uri) }
+    }
+    // The note saves half a second after he stops typing, not on every key.
+    androidx.compose.runtime.LaunchedEffect(note) {
+        kotlinx.coroutines.delay(500)
+        val latest = Repo.state.value.trips.firstOrNull { it.id == trip.id } ?: Repo.state.value.activeTrip?.takeIf { it.id == trip.id }
+        if (latest != null && latest.note != note) Repo.updateTrip(latest.copy(note = note))
     }
     val mins = (((trip.end ?: System.currentTimeMillis()) - trip.start) / 60_000).toInt()
     val water = Fish.byId(trip.catches.firstOrNull()?.species ?: "")?.water
-        ?: if (Repo.state.value.spots.firstOrNull { it.id == trip.spotId }?.water == Water.LAKE) Water.LAKE else Water.SEA
+        ?: if (s.spots.firstOrNull { it.id == trip.spotId }?.water == Water.LAKE) Water.LAKE else Water.SEA
 
     Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
         Column {
@@ -91,7 +108,7 @@ fun TripContent(trip: Trip, onShare: () -> Unit, onClose: () -> Unit) {
                 Row(Modifier.fillMaxWidth()) {
                     TripStat(t("Sea", "Sjór"), app.afli.tempText(s.sst, 1), Modifier.weight(1f))
                     TripStat(t("Light", "Birta"), if (s.sunElevation < -6) t("Dark", "Myrkur") else if (s.sunElevation < 8) t("Dawn/dusk", "Ljósaskipti") else t("Day", "Dagur"), Modifier.weight(1f))
-                    TripStat(t("Pressure", "Þrýstingur"), if (s.pressure.isNaN() || s.pressure3h.isNaN()) "–" else (if (s.pressure >= s.pressure3h) "↑ " else "↓ ") + fmt(kotlin.math.abs(s.pressure - s.pressure3h), 1), Modifier.weight(1f))
+                    TripStat(t("Pressure", "Þrýstingur"), if (s.pressure.isNaN() || s.pressure3h.isNaN()) "–" else (if (s.pressure >= s.pressure3h) "↑ " else "↓ ") + fmt(kotlin.math.abs(s.pressure - s.pressure3h), 1) + " hPa", Modifier.weight(1f))
                 }
             }
         }
@@ -138,10 +155,7 @@ fun TripContent(trip: Trip, onShare: () -> Unit, onClose: () -> Unit) {
                 if (note.isEmpty()) Text(t("Bait, where you stood, who you were with…", "Beita, hvar þú stóðst, með hverjum…"), style = T.small.copy(color = C.faint))
                 BasicTextField(
                     note,
-                    onValueChange = {
-                        note = it.take(400)
-                        Repo.updateTrip(trip.copy(note = note))
-                    },
+                    onValueChange = { note = it.take(400) },
                     textStyle = T.body,
                     cursorBrush = SolidColor(C.brass),
                     modifier = Modifier.fillMaxWidth(),
@@ -155,13 +169,13 @@ fun TripContent(trip: Trip, onShare: () -> Unit, onClose: () -> Unit) {
                 trip.photos.forEach { name -> PhotoThumb(name) { Repo.removePhoto(trip, name); Haptics.tap(view) } }
                 Box(
                     Modifier.size(84.dp).clip(RoundedCornerShape(16.dp)).border(1.dp, C.brass.copy(alpha = 0.6f), RoundedCornerShape(16.dp))
-                        .clickable { Haptics.tap(view); runCatching { takePhoto.launch(null) } },
+                        .clickable { Haptics.tap(view); shoot() },
                     contentAlignment = Alignment.Center,
                 ) {
                     Text(t("+ Photo", "+ Mynd"), style = T.small.copy(color = C.brass))
                 }
             }
-            if (trip.photos.isNotEmpty()) Text(t("Tap a photo twice to remove it.", "Ýttu tvisvar á mynd til að fjarlægja hana."), style = T.small.copy(fontSize = 11.sp, color = C.faint), modifier = Modifier.padding(top = 6.dp))
+        
         }
 
         if (trip.end != null) GlassButton(t("Share this trip", "Deila ferðinni"), accent = C.brass, modifier = Modifier.fillMaxWidth(), onClick = onShare)
@@ -185,7 +199,7 @@ fun TripContent(trip: Trip, onShare: () -> Unit, onClose: () -> Unit) {
 private fun TripStat(label: String, value: String, modifier: Modifier) {
     Column(modifier) {
         Text(label, style = T.small.copy(fontSize = 11.sp, color = C.faint), maxLines = 1)
-        Text(value, style = T.number, maxLines = 1, softWrap = false)
+        FitText(value, T.number, min = 10.sp)
     }
 }
 
@@ -223,27 +237,40 @@ private fun CatchRow(c: Catch, onSize: (Int?) -> Unit, onRemove: () -> Unit) {
 @Composable
 private fun StepButton(label: String, onClick: () -> Unit) {
     Box(
-        Modifier.size(34.dp).clip(CircleShape).border(1.dp, C.line, CircleShape).clickable(onClick = onClick),
+        Modifier.size(44.dp).clip(CircleShape).border(1.dp, C.line, CircleShape).clickable(onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
         Text(label, style = T.heading.copy(color = C.brass))
     }
 }
 
-/** A trip photo; two taps remove it. */
+/** A trip photo with a small × in the corner; tap × and then Remove to delete it. */
 @Composable
 private fun PhotoThumb(name: String, onRemove: () -> Unit) {
-    val img: ImageBitmap? = remember(name) {
-        runCatching { BitmapFactory.decodeFile(Repo.photoFile(name).path)?.asImageBitmap() }.getOrNull()
-    }
+    val img by rememberPhoto(name, 300)
     var armed by remember(name) { mutableStateOf(false) }
-    Box(
-        Modifier.size(84.dp).clip(RoundedCornerShape(16.dp)).background(C.deep)
-            .border(if (armed) 2.dp else 0.dp, if (armed) C.bad else C.line, RoundedCornerShape(16.dp))
-            .clickable { if (armed) onRemove() else armed = true },
-        contentAlignment = Alignment.Center,
-    ) {
-        if (img != null) Image(img, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.size(84.dp))
-        if (armed) Text(t("Remove", "Fjarlægja"), style = T.small.copy(color = C.bad), modifier = Modifier.background(C.navy.copy(alpha = 0.7f), RoundedCornerShape(8.dp)).padding(horizontal = 6.dp, vertical = 2.dp))
+    // Disarms by itself after a few seconds so a stray tap can't delete later.
+    androidx.compose.runtime.LaunchedEffect(armed) {
+        if (armed) {
+            kotlinx.coroutines.delay(3_000)
+            armed = false
+        }
+    }
+    Box(Modifier.size(84.dp).clip(RoundedCornerShape(16.dp)).background(C.deep).border(if (armed) 2.dp else 0.dp, if (armed) C.bad else C.line, RoundedCornerShape(16.dp))) {
+        img?.let { Image(it, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.size(84.dp)) }
+        if (armed) {
+            Box(Modifier.size(84.dp).background(C.navy.copy(alpha = 0.6f)).clickable(onClick = onRemove), contentAlignment = Alignment.Center) {
+                Text(t("Remove", "Fjarlægja"), style = T.small.copy(color = C.bad))
+            }
+        } else {
+            Box(
+                Modifier.align(Alignment.TopEnd).size(30.dp).clickable { armed = true },
+                contentAlignment = Alignment.Center,
+            ) {
+                Box(Modifier.size(20.dp).background(C.navy.copy(alpha = 0.75f), CircleShape), contentAlignment = Alignment.Center) {
+                    Text("×", style = T.small.copy(color = C.foam, fontSize = 13.sp))
+                }
+            }
+        }
     }
 }

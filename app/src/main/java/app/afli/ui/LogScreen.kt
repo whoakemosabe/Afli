@@ -118,13 +118,16 @@ fun LogScreen(
     val done = s.trips.filter { it.end != null }
     var spotFilter by remember { mutableStateOf<String?>(null) }
     var fishFilter by remember { mutableStateOf<String?>(null) }
+    // A filter whose spot or fish no longer has trips quietly resets.
+    if (spotFilter != null && done.none { it.spotId == spotFilter }) spotFilter = null
+    if (fishFilter != null && done.none { tr -> tr.catches.any { it.species == fishFilter } }) fishFilter = null
 
     Column(
         Modifier.verticalScroll(scroll).padding(top = top).padding(horizontal = 16.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
-        UndoBar(s.lastDeleted)
-        s.lastEnded?.let { ended -> SummaryCard(ended, s, onShare = { onShare(ended.id) }) }
+        // The trip just ended, read live so later edits (or a delete) show up.
+        s.lastEnded?.let { e -> s.trips.firstOrNull { it.id == e.id } }?.let { ended -> SummaryCard(ended, s, onShare = { onShare(ended.id) }) }
 
         val active = s.activeTrip
         if (active == null) StartCard(s, onStart) else LiveTrip(active, s, onCatch, onUndo, onEnd)
@@ -141,7 +144,7 @@ fun LogScreen(
             if (shown.isEmpty()) Text(t("No trips match.", "Engar ferðir passa."), style = T.small)
             groupTrips(shown).forEach { (label, trips) ->
                 Text(label, style = T.small.copy(color = C.faint, fontWeight = FontWeight.SemiBold), modifier = Modifier.padding(start = 4.dp, top = 4.dp))
-                trips.forEach { TripCard(it, onOpenTrip) }
+                trips.forEach { tr -> androidx.compose.runtime.key(tr.id) { TripCard(tr, onOpenTrip) } }
             }
         }
 
@@ -164,7 +167,11 @@ private fun StartCard(s: UiState, onStart: () -> Unit) {
     val view = LocalView.current
     val now = s.now
     val spot = s.spot
-    val askNotify = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { }
+    val context = androidx.compose.ui.platform.LocalContext.current
+    // Once he allows notifications, the catch buttons appear for the trip that just started.
+    val askNotify = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        if (granted) app.afli.update.TripNotice.update(context)
+    }
     GlassCard(Modifier.fillMaxWidth().coachTarget("start"), glow = if ((now?.score ?: 0) >= 60) C.brass else null) {
         Text(
             when {
@@ -198,8 +205,10 @@ private fun StartCard(s: UiState, onStart: () -> Unit) {
             explain = t("Starts a trip at your GPS position, saves the conditions, and puts catch buttons in your notifications.", "Byrjar ferð þar sem GPS segir að þú sért, vistar aðstæðurnar og setur aflahnappa í tilkynningarnar."),
             onClick = {
                 Haptics.confirm(view)
-                if (Build.VERSION.SDK_INT >= 33) runCatching { askNotify.launch(Manifest.permission.POST_NOTIFICATIONS) }
                 onStart()
+                if (Build.VERSION.SDK_INT >= 33 && androidx.core.content.ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+                    runCatching { askNotify.launch(Manifest.permission.POST_NOTIFICATIONS) }
+                }
             },
         )
     }
@@ -223,8 +232,11 @@ private fun LiveTrip(trip: Trip, s: UiState, onCatch: (String) -> Unit, onUndo: 
     val water = s.spots.firstOrNull { it.id == trip.spotId }?.water ?: s.spot?.water ?: Water.SEA
     // A little splash each time a fish is added.
     val splash = remember { Animatable(0f) }
+    val seen = remember(trip.id) { intArrayOf(trip.catches.size) }
     LaunchedEffect(trip.catches.size) {
-        if (trip.catches.isNotEmpty()) {
+        val grew = trip.catches.size > seen[0]
+        seen[0] = trip.catches.size
+        if (grew) {
             splash.snapTo(1f)
             splash.animateTo(0f, tween(700, easing = FastOutSlowInEasing))
         }
@@ -251,7 +263,7 @@ private fun LiveTrip(trip: Trip, s: UiState, onCatch: (String) -> Unit, onUndo: 
                 }
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Text("${trip.catches.size}", style = T.title.copy(fontSize = 28.sp, color = if (trip.catches.isEmpty()) C.mist else C.good))
-                    Text(t("fish", "fiskar"), style = T.small.copy(fontSize = 11.sp))
+                    Text(t("fish", if (oneIs(trip.catches.size)) "fiskur" else "fiskar"), style = T.small.copy(fontSize = 11.sp))
                 }
             }
         }
@@ -389,7 +401,9 @@ private fun SummaryCard(trip: Trip, s: UiState, onShare: () -> Unit) {
     GlassCard(Modifier.fillMaxWidth(), glow = C.good) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(t("TRIP DONE", "FERÐ LOKIÐ"), style = T.label, modifier = Modifier.weight(1f))
-            Text("×", style = T.title.copy(color = C.faint), modifier = Modifier.clickable(remember { MutableInteractionSource() }, null) { Repo.dismissSummary() }.padding(horizontal = 6.dp))
+            Box(Modifier.size(44.dp).clickable(remember { MutableInteractionSource() }, null) { Repo.dismissSummary() }, contentAlignment = Alignment.Center) {
+                Text("×", style = T.title.copy(color = C.faint))
+            }
         }
         FitText("${duration(mins)} · " + fishCount(trip.catches.size), T.title, min = 14.sp)
         val parts = listOfNotNull(
@@ -398,9 +412,11 @@ private fun SummaryCard(trip: Trip, s: UiState, onShare: () -> Unit) {
             trip.snapshot?.let { t("Afli said ${it.score}", "Afli spáði ${it.score}") },
         )
         Text(parts.joinToString(" · ").ifEmpty { t("A blank trip still counts.", "Ferð án afla telur líka.") }, style = T.small.copy(color = C.foam))
-        if (trip.catches.isNotEmpty()) {
-            Spacer(Modifier.height(10.dp))
-            GlassButton(t("Share", "Deila"), accent = C.brass, style = T.small, onClick = onShare)
+        Spacer(Modifier.height(10.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            if (trip.catches.isNotEmpty()) GlassButton(t("Share", "Deila"), accent = C.brass, style = T.small, onClick = onShare)
+            // Ended by mistake? Put it back on.
+            if (s.activeTrip == null) GlassButton(t("Not done? Resume", "Ekki búinn? Halda áfram"), style = T.small, onClick = { Repo.resumeTrip() })
         }
     }
 }
@@ -415,6 +431,7 @@ private fun tideStory(trip: Trip, s: UiState): String? {
     if (dirs.isEmpty()) return null
     val share = dirs.count { it }.toDouble() / dirs.size
     return when {
+        dirs.size == 1 -> if (share == 1.0) t("on the rising tide", "á aðfalli") else t("on the falling tide", "á útfalli")
         share == 1.0 -> t("all on the rising tide", "allir á aðfalli")
         share == 0.0 -> t("all on the falling tide", "allir á útfalli")
         share >= 0.66 -> t("most on the rising tide", "flestir á aðfalli")
@@ -455,9 +472,9 @@ private fun QuickStats(done: List<Trip>) {
     GlassCard(Modifier.fillMaxWidth(), padding = PaddingValues(horizontal = 14.dp, vertical = 14.dp)) {
         Row(Modifier.fillMaxWidth()) {
             Big(t("Trips", "Ferðir"), "${done.size}", Modifier.weight(1f))
-            Big(t("Hours", "Tímar"), fmt(hours, if (hours < 10) 1 else 0), Modifier.weight(1f))
+            Big(t("Hours", "Klst."), fmt(hours, if (hours < 10) 1 else 0), Modifier.weight(1f))
             Big(t("Fish", "Fiskar"), "$fish", Modifier.weight(1f))
-            Big(t("Per hour", "Á tíma"), fmt(Learn.rate(done), 1), Modifier.weight(1f))
+            Big(t("Per hour", "Á klst."), fmt(Learn.rate(done), 1), Modifier.weight(1f))
         }
     }
 }
@@ -479,7 +496,7 @@ private fun CalendarStrip(done: List<Trip>) {
     val zone = ZoneId.systemDefault()
     val today = LocalDate.now(zone)
     val firstMonday = today.minusDays((today.dayOfWeek.value - 1).toLong()).minusWeeks(7)
-    val byDay = done.groupBy { Instant.ofEpochMilli(it.start).atZone(zone).toLocalDate() }
+    val byDay = done.groupBy { Instant.ofEpochMilli(it.start).atZone(zone).toLocalDate() }.filterKeys { !it.isBefore(firstMonday) }
     val maxFish = byDay.values.maxOfOrNull { d -> d.sumOf { it.catches.size } }?.coerceAtLeast(1) ?: 1
     GlassCard(Modifier.fillMaxWidth(), padding = PaddingValues(14.dp)) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(5.dp)) {
@@ -507,7 +524,7 @@ private fun CalendarStrip(done: List<Trip>) {
         Spacer(Modifier.height(8.dp))
         Row(verticalAlignment = Alignment.CenterVertically) {
             val tripsIn = done.count { !Instant.ofEpochMilli(it.start).atZone(zone).toLocalDate().isBefore(firstMonday) }
-            Text(t("$tripsIn trips in 8 weeks", "$tripsIn ferðir á 8 vikum"), style = T.small.copy(fontSize = 11.sp, color = C.faint), modifier = Modifier.weight(1f))
+            Text(tripCount(tripsIn) + t(" in 8 weeks", " á 8 vikum"), style = T.small.copy(fontSize = 11.sp, color = C.faint), modifier = Modifier.weight(1f))
             Box(Modifier.size(10.dp).border(1.dp, C.brass.copy(alpha = 0.7f), RoundedCornerShape(2.dp)))
             Text(" " + t("blank", "án afla") + "   ", style = T.small.copy(fontSize = 11.sp, color = C.faint))
             Box(Modifier.size(10.dp).background(C.brass, RoundedCornerShape(2.dp)))
@@ -555,10 +572,7 @@ private fun groupTrips(trips: List<Trip>): List<Pair<String, List<Trip>>> {
 @Composable
 private fun TripCard(trip: Trip, onOpen: (String) -> Unit) {
     val mins = (((trip.end ?: trip.start) - trip.start) / 60_000).toInt()
-    val photo = trip.photos.firstOrNull()
-    val img: ImageBitmap? = remember(photo) {
-        photo?.let { runCatching { BitmapFactory.decodeFile(Repo.photoFile(it).path)?.asImageBitmap() }.getOrNull() }
-    }
+    val img by rememberPhoto(trip.photos.firstOrNull(), 200)
     GlassCard(
         Modifier.fillMaxWidth(),
         padding = PaddingValues(12.dp),
@@ -567,8 +581,9 @@ private fun TripCard(trip: Trip, onOpen: (String) -> Unit) {
     ) {
         Row(Modifier.height(IntrinsicSize.Min), verticalAlignment = Alignment.CenterVertically) {
             Box(Modifier.size(64.dp).clip(RoundedCornerShape(14.dp)).background(C.deep), contentAlignment = Alignment.Center) {
+                val pic = img
                 when {
-                    img != null -> Image(img, null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
+                    pic != null -> Image(pic, null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
                     trip.snapshot != null -> ScoreRing(trip.snapshot.score, scoreBite(trip.snapshot.score), Modifier.size(60.dp))
                     else -> FishGlyph(C.faint, Modifier.size(34.dp))
                 }
@@ -576,7 +591,7 @@ private fun TripCard(trip: Trip, onOpen: (String) -> Unit) {
             Spacer(Modifier.width(12.dp))
             Column(Modifier.weight(1f)) {
                 FitText(spotLabel(trip.spotId, trip.spotName), T.heading, min = 11.sp)
-                Text("${dayWord(trip.start)} ${clock(trip.start)} · ${duration(mins)}", style = T.small, maxLines = 1)
+                Text("${tripDay(trip.start)} ${clock(trip.start)} · ${duration(mins)}", style = T.small, maxLines = 1)
                 Spacer(Modifier.height(4.dp))
                 Text(
                     if (trip.catches.isEmpty()) t("Blank", "Án afla")
@@ -621,18 +636,12 @@ private fun MiniTimeline(trip: Trip, modifier: Modifier) {
     }
 }
 
-/** "Trip deleted · Undo", for six seconds after a delete. */
+/** "Trip deleted · Undo", for six seconds after a delete (the timer runs in Repo). */
 @Composable
-private fun UndoBar(deleted: Trip?) {
+fun UndoBar(deleted: Trip?, modifier: Modifier = Modifier) {
     val view = LocalView.current
-    LaunchedEffect(deleted?.id) {
-        if (deleted != null) {
-            delay(6_000)
-            Repo.forgetDeleted()
-        }
-    }
-    AnimatedVisibility(deleted != null, enter = fadeIn() + expandVertically(), exit = fadeOut() + shrinkVertically()) {
-        GlassCard(Modifier.fillMaxWidth(), padding = PaddingValues(horizontal = 16.dp, vertical = 12.dp), onClick = {
+    AnimatedVisibility(deleted != null, modifier = modifier, enter = fadeIn() + expandVertically(), exit = fadeOut() + shrinkVertically()) {
+        GlassCard(Modifier.fillMaxWidth(), padding = PaddingValues(horizontal = 16.dp, vertical = 12.dp), glow = C.brass, onClick = {
             Haptics.confirm(view)
             Repo.undoDelete()
         }) {
@@ -673,7 +682,7 @@ private fun Collection(done: List<Trip>) {
 private fun FishTile(f: Species, mine: List<Pair<Catch, Trip>>, modifier: Modifier) {
     val got = mine.isNotEmpty()
     val photo = mine.map { it.second }.firstOrNull { it.photos.isNotEmpty() }?.photos?.firstOrNull()
-    val img: ImageBitmap? = remember(photo) { photo?.let { runCatching { BitmapFactory.decodeFile(Repo.photoFile(it).path)?.asImageBitmap() }.getOrNull() } }
+    val img by rememberPhoto(photo, 240)
     val biggest = mine.mapNotNull { it.first.sizeCm }.maxOrNull()
     val first = mine.minOfOrNull { it.first.time }
     Column(
@@ -684,7 +693,8 @@ private fun FishTile(f: Species, mine: List<Pair<Catch, Trip>>, modifier: Modifi
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Box(Modifier.fillMaxWidth().aspectRatio(1.3f).clip(RoundedCornerShape(10.dp)), contentAlignment = Alignment.Center) {
-            if (img != null) Image(img, null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
+            val pic = img
+            if (pic != null) Image(pic, null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
             else FishGlyph(if (got) C.brass else C.faint.copy(alpha = 0.5f), Modifier.fillMaxSize().padding(8.dp))
         }
         Spacer(Modifier.height(6.dp))
@@ -693,7 +703,7 @@ private fun FishTile(f: Species, mine: List<Pair<Catch, Trip>>, modifier: Modifi
             when {
                 !got -> t("not yet", "ekki enn")
                 biggest != null -> "${mine.size}× · $biggest cm"
-                else -> "${mine.size}× · " + (first?.let { DateTimeFormatter.ofPattern("d MMM", app.afli.L.locale).format(Instant.ofEpochMilli(it).atZone(ZoneId.systemDefault())) } ?: "")
+                else -> "${mine.size}× · " + (first?.let { tripDay(it) } ?: "")
             },
             T.small.copy(fontSize = 10.sp, color = C.faint),
             min = 8.sp,
@@ -750,7 +760,7 @@ private fun Insights(s: UiState, done: List<Trip>) {
             },
             style = T.body,
         )
-        Text(t("${great.size} Great and ${slow.size} Slow trips so far.", "${great.size} frábærar og ${slow.size} rólegar ferðir hingað til."), style = T.small.copy(fontSize = 11.sp, color = C.faint))
+        Text(t("Trips started on a Great forecast: ${great.size} · on a Slow one: ${slow.size}", "Ferðir á frábærri spá: ${great.size} · á rólegri spá: ${slow.size}"), style = T.small.copy(fontSize = 11.sp, color = C.faint))
     }
 
     if (withSnap.size >= 3) {
@@ -828,6 +838,15 @@ private fun RateBars(groups: List<Pair<String, List<Trip>>>) {
         }
     }
 }
+
+/** "Today", "Tomorrow", a day name this week, or a date ("12 Oct" / "12. okt.") further back. */
+fun tripDay(ms: Long): String {
+    val d = Instant.ofEpochMilli(ms).atZone(ZoneId.systemDefault()).toLocalDate()
+    return if (ChronoUnit.DAYS.between(d, LocalDate.now()) <= 6) dayWord(ms)
+    else DateTimeFormatter.ofPattern(if (app.afli.L.isl) "d. MMM" else "d MMM", app.afli.L.locale).format(d)
+}
+
+fun tripCount(n: Int) = t(if (n == 1) "1 trip" else "$n trips", if (oneIs(n)) "$n ferð" else "$n ferðir")
 
 /** Icelandic uses the singular for numbers ending in 1, except 11 (1, 21, 31… fiskur). */
 private fun oneIs(n: Int) = n % 10 == 1 && n % 100 != 11

@@ -1100,7 +1100,7 @@ private fun FishRow(s: UiState, spot: Spot) {
 }
 
 /** Lets a row reach the screen edges past the page's side padding. */
-private fun Modifier.bleed(by: Dp): Modifier = layout { m, c ->
+internal fun Modifier.bleed(by: Dp): Modifier = layout { m, c ->
     val extra = by.roundToPx() * 2
     val p = m.measure(c.copy(minWidth = c.minWidth + extra, maxWidth = c.maxWidth + extra))
     layout(c.maxWidth, p.height) { p.place(-by.roundToPx(), 0) }

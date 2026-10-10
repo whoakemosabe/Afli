@@ -82,7 +82,7 @@ private fun SpotRow(sp: Spot, s: UiState, onShow: (Spot) -> Unit) {
                             val bearing = Math.toDegrees(atan2((sp.lon - it.longitude) * cos(Math.toRadians(it.latitude)), sp.lat - it.latitude))
                             "${fmt(km, if (km < 10) 1 else 0)} km ${compass((bearing + 360) % 360)}"
                         },
-                        if (trips.isEmpty()) t("no trips yet", "engar ferðir enn") else t("${trips.size} trips, $fish fish", "${trips.size} ferðir, $fish fiskar"),
+                        if (trips.isEmpty()) t("no trips yet", "engar ferðir enn") else tripCount(trips.size) + ", " + fishCount(fish),
                     ).joinToString(" · "),
                     style = T.small.copy(fontSize = 12.sp),
                     maxLines = 1,

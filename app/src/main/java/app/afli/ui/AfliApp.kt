@@ -45,6 +45,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBars
@@ -288,19 +289,26 @@ fun AfliApp() {
             }
 
             ExplainBubble(Modifier.align(Alignment.BottomCenter).navigationBarsPadding().padding(bottom = 92.dp))
+            // "Trip deleted · Undo" floats above the bar on any screen, so it's never off-screen.
+            UndoBar(s.lastDeleted, Modifier.align(Alignment.BottomCenter).navigationBarsPadding().padding(bottom = 92.dp, start = 16.dp, end = 16.dp))
 
+            // While a sheet slides away, keep showing what it held (sheet is already null then).
+            val shownSheet = remember { arrayOfNulls<Sheet>(1) }
+            if (sheet != null) shownSheet[0] = sheet
+            val lastTrip = remember { arrayOfNulls<app.afli.data.Trip>(1) }
+            (s.trips.firstOrNull { it.id == openTrip } ?: s.activeTrip?.takeIf { it.id == openTrip })?.let { lastTrip[0] = it }
             SheetHost(sheet != null, onClose = { sheet = null }) {
-                when (sheet) {
+                when (shownSheet[0]) {
                     Sheet.SETTINGS -> SettingsContent(onManageSpots = { sheet = Sheet.SPOTS }, onReplayIntro = {
                         sheet = null
                         Repo.store().onboarded = false
                         onboarded = false
                     })
                     Sheet.FIX_SPOT -> s.spot?.let { SpotFixContent(it) { sheet = null } }
-                    Sheet.TRIP -> (s.trips.firstOrNull { it.id == openTrip } ?: s.activeTrip?.takeIf { it.id == openTrip })?.let {
-                        TripContent(it, onShare = { sheet = Sheet.SHARE }) { sheet = null }
+                    Sheet.TRIP -> lastTrip[0]?.let {
+                        TripContent(it, s, onShare = { sheet = Sheet.SHARE }) { sheet = null }
                     }
-                    Sheet.SHARE -> s.trips.firstOrNull { it.id == openTrip }?.let { ShareContent(it) }
+                    Sheet.SHARE -> lastTrip[0]?.let { ShareContent(it) }
                     Sheet.SPOTS -> SpotsContent(s) {
                         sheet = null
                         tab = 0
@@ -489,6 +497,7 @@ private fun SheetHost(open: Boolean, onClose: () -> Unit, content: @Composable (
                     )
                     .nestedScroll(nested)
                     .navigationBarsPadding()
+                    .imePadding()
                     .padding(horizontal = 16.dp)
                     .padding(top = 10.dp, bottom = 16.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
