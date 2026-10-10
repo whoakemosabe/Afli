@@ -21,6 +21,8 @@ import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.border
+import androidx.compose.ui.draw.clip
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.snapping.SnapPosition
 import androidx.compose.foundation.gestures.snapping.rememberSnapFlingBehavior
@@ -229,22 +231,9 @@ fun NowScreen(
             if (now != null && spot != null && h != null) {
                 HeroCard(s, spot, now, sel, hours)
 
-                // One sliding row, always there, so the page below never jumps as reasons change.
                 Column(Modifier.coachTarget("why")) {
                     SectionLabel(t("Why", "Af hverju"))
-                    Row(
-                        Modifier
-                            .bleed(16.dp)
-                            .fadeEdges(16.dp)
-                            .horizontalScroll(rememberScrollState())
-                            .height(48.dp)
-                            .padding(horizontal = 16.dp, vertical = 4.dp),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        if (now.reasons.isEmpty()) Text(t("Nothing stands out this hour.", "Ekkert sérstakt þennan tíma."), style = T.small)
-                        now.reasons.take(6).forEach { r -> ReasonChip(r) }
-                    }
+                    WhyCard(now.reasons)
                 }
 
                 ConditionTiles(s, spot, hours, sel, now)
@@ -531,14 +520,58 @@ fun SafetyPill(safety: Safety, why: String, modifier: Modifier = Modifier) {
     )
 }
 
+/**
+ * Why the score is what it is, sorted into two tidy columns: what's helping and what's holding
+ * it back, strongest first. Each column always has three slots, so the card never changes size
+ * as you swipe through hours. Tap a line for the full explanation.
+ */
 @Composable
-private fun ReasonChip(r: Reason) {
-    GlassChip(
-        text = r.label,
-        dot = if (r.good) C.good else C.bad,
-        explain = r.detail,
-        onClick = { Tips.explain(r.detail) },
-    )
+private fun WhyCard(reasons: List<Reason>) {
+    val good = reasons.filter { it.good }.take(3)
+    val bad = reasons.filter { !it.good }.take(3)
+    GlassCard(Modifier.fillMaxWidth(), padding = PaddingValues(horizontal = 14.dp, vertical = 14.dp)) {
+        Row(Modifier.fillMaxWidth().height(IntrinsicSize.Min)) {
+            WhyColumn(t("Helping", "Hjálpar"), C.good, good, Modifier.weight(1f))
+            Box(Modifier.padding(horizontal = 10.dp).width(1.dp).fillMaxHeight().background(C.line))
+            WhyColumn(t("Holding back", "Dregur úr"), C.bad, bad, Modifier.weight(1f))
+        }
+    }
+}
+
+@Composable
+private fun WhyColumn(title: String, color: Color, items: List<Reason>, modifier: Modifier) {
+    val view = LocalView.current
+    Column(modifier) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Box(Modifier.size(8.dp).background(color, CircleShape))
+            Spacer(Modifier.width(8.dp))
+            Text(title, style = T.small.copy(fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = color), maxLines = 1, overflow = TextOverflow.Ellipsis)
+        }
+        Spacer(Modifier.height(8.dp))
+        for (k in 0 until 3) {
+            val r = items.getOrNull(k)
+            Row(
+                Modifier
+                    .fillMaxWidth()
+                    .height(34.dp)
+                    .let {
+                        if (r == null) it else it
+                            .clip(RoundedCornerShape(10.dp))
+                            .clickable { Haptics.tap(view); Tips.explain(r.detail) }
+                    }
+                    .padding(horizontal = 4.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                if (r != null) {
+                    Text(if (r.good) "+" else "−", style = T.number.copy(color = color, fontSize = 14.sp), modifier = Modifier.width(16.dp))
+                    Text(r.label, style = T.small.copy(color = C.foam), maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+                    Text("›", style = T.small.copy(color = C.faint))
+                } else if (k == 0) {
+                    Text(t("Nothing", "Ekkert"), style = T.small.copy(color = C.faint), maxLines = 1)
+                }
+            }
+        }
+    }
 }
 
 // ---------------------------------------------------------------- time strip

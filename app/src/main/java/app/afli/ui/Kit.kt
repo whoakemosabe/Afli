@@ -43,6 +43,10 @@ import androidx.compose.ui.graphics.GraphicsLayerScope
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.fillMaxWidth
 
 /**
  * Press effect for anything tappable: a springy squish, the glass lens deepening under the
@@ -265,7 +269,18 @@ val Rim = Brush.linearGradient(
 
 @Composable
 fun SectionLabel(text: String, modifier: Modifier = Modifier) {
-    Text(text.uppercase(), style = T.label, modifier = modifier.padding(start = 6.dp, bottom = 8.dp))
+    // A short brass bar, the title in clear caps, and a hairline that fades out to the right.
+    Row(modifier.fillMaxWidth().padding(start = 2.dp, top = 6.dp, bottom = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+        Box(Modifier.width(3.dp).height(14.dp).background(C.brass, RoundedCornerShape(2.dp)))
+        Spacer(Modifier.width(8.dp))
+        Text(
+            text.uppercase(app.afli.L.locale),
+            style = T.label.copy(fontSize = 13.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 1.6.sp, color = C.foam),
+            maxLines = 1,
+        )
+        Spacer(Modifier.width(10.dp))
+        Box(Modifier.weight(1f).height(1.dp).background(Brush.horizontalGradient(listOf(C.brass.copy(alpha = 0.45f), Color.Transparent))))
+    }
 }
 
 @Composable
