@@ -38,6 +38,8 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.unit.dp
 import app.afli.L
+import app.afli.Prefs
+import app.afli.WindUnit
 import app.afli.Lang
 import app.afli.data.Repo
 import app.afli.t
@@ -66,6 +68,8 @@ fun SettingsContent(onReplayIntro: () -> Unit) {
     Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
         Text(t("Settings", "Stillingar"), style = T.title)
         LanguageCard()
+        UnitsCard()
+        FeelCard()
         UpdateSection()
         GlassCard(Modifier.fillMaxWidth()) {
             SectionLabel(t("Help", "Hjálp"))
@@ -79,6 +83,7 @@ fun SettingsContent(onReplayIntro: () -> Unit) {
                 GlassButton(t("Replay intro", "Sýna kynningu"), style = T.small, onClick = onReplayIntro)
             }
         }
+        YourDataCard()
         GlassCard(Modifier.fillMaxWidth()) {
             SectionLabel(t("Data", "Gögn"))
             Text(
@@ -97,6 +102,103 @@ fun SettingsContent(onReplayIntro: () -> Unit) {
             Spacer(Modifier.height(6.dp))
             Text(t("Version ", "Útgáfa ") + Updater.installedVersion(context), style = T.small.copy(color = C.faint))
         }
+    }
+}
+
+/** A row of choice chips under a small label. */
+@Composable
+private fun <V> ChoiceRow(label: String, options: List<Pair<V, String>>, selected: V, onPick: (V) -> Unit) {
+    val view = LocalView.current
+    Text(label, style = T.small.copy(color = C.faint))
+    Spacer(Modifier.height(6.dp))
+    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        options.forEach { (v, name) ->
+            GlassChip(name, selected = v == selected, onClick = {
+                if (v != selected) {
+                    onPick(v)
+                    Haptics.confirm(view)
+                }
+            })
+        }
+    }
+}
+
+/** Wind and temperature units. Every number and explanation in Afli follows at once. */
+@Composable
+private fun UnitsCard() {
+    val context = LocalContext.current
+    GlassCard(Modifier.fillMaxWidth()) {
+        SectionLabel(t("Units", "Einingar"))
+        ChoiceRow(t("Wind", "Vindur"), WindUnit.entries.map { it to it.label }, Prefs.wind) {
+            Prefs.wind = it
+            Prefs.save(context)
+        }
+        Spacer(Modifier.height(12.dp))
+        ChoiceRow(t("Temperature", "Hiti"), listOf(false to "°C", true to "°F"), Prefs.fahrenheit) {
+            Prefs.fahrenheit = it
+            Prefs.save(context)
+        }
+    }
+}
+
+/** Haptics and the moving sea. */
+@Composable
+private fun FeelCard() {
+    val context = LocalContext.current
+    GlassCard(Modifier.fillMaxWidth()) {
+        SectionLabel(t("Look and feel", "Útlit og viðmót"))
+        ChoiceRow(t("Vibration on taps", "Titringur við snertingu"), listOf(true to t("On", "Kveikt"), false to t("Off", "Slökkt")), Prefs.haptics) {
+            Prefs.haptics = it
+            Prefs.save(context)
+        }
+        Spacer(Modifier.height(12.dp))
+        ChoiceRow(t("Moving sea background", "Hreyfanlegur sjór í bakgrunni"), listOf(true to t("On", "Kveikt"), false to t("Still", "Kyrr")), Prefs.animatedSea) {
+            Prefs.animatedSea = it
+            Prefs.save(context)
+        }
+        Spacer(Modifier.height(6.dp))
+        Text(t("A still sea saves a little battery.", "Kyrr sjór sparar örlítið rafhlöðuna."), style = T.small)
+    }
+}
+
+/** Clearing trips and saved spots, each behind a second tap. */
+@Composable
+private fun YourDataCard() {
+    val context = LocalContext.current
+    val view = LocalView.current
+    var confirm by remember { mutableStateOf<String?>(null) }
+    GlassCard(Modifier.fillMaxWidth()) {
+        SectionLabel(t("Your data", "Gögnin þín"))
+        Text(t("Trips and spots are kept only on this phone.", "Ferðir og staðir eru bara geymd í þessum síma."), style = T.small)
+        Spacer(Modifier.height(10.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            GlassButton(
+                if (confirm == "spots") t("Tap again to forget", "Ýttu aftur til að gleyma") else t("Forget saved spots", "Gleyma vistuðum stöðum"),
+                style = T.small,
+                accent = if (confirm == "spots") C.bad else C.foam,
+                onClick = {
+                    if (confirm == "spots") {
+                        Repo.forgetSpots(context)
+                        Haptics.confirm(view)
+                        confirm = null
+                        Tips.explain(t("Saved spots and spot fixes are gone. The built-in harbours and lakes stay.", "Vistaðir staðir og stillingar þeirra eru horfnar. Innbyggðu hafnirnar og vötnin eru enn."))
+                    } else confirm = "spots"
+                },
+            )
+        }
+        Spacer(Modifier.height(8.dp))
+        GlassButton(
+            if (confirm == "trips") t("Tap again to delete all trips", "Ýttu aftur til að eyða öllum ferðum") else t("Delete all trips", "Eyða öllum ferðum"),
+            style = T.small,
+            accent = C.bad,
+            onClick = {
+                if (confirm == "trips") {
+                    Repo.clearTrips()
+                    Haptics.confirm(view)
+                    confirm = null
+                } else confirm = "trips"
+            },
+        )
     }
 }
 

@@ -262,6 +262,17 @@ object Repo {
         state.update { it.copy(activeTrip = null, trips = db.trips()) }
     }
 
+    fun clearTrips() {
+        db.clearTrips()
+        state.update { it.copy(trips = emptyList(), activeTrip = null) }
+    }
+
+    fun forgetSpots(context: Context) {
+        db.forgetSpots()
+        state.update { it.copy(spots = db.spots()) }
+        refresh(context)
+    }
+
     fun deleteTrip(id: String) {
         db.deleteTrip(id)
         state.update { it.copy(trips = db.trips(), activeTrip = if (it.activeTrip?.id == id) null else it.activeTrip) }

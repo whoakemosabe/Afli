@@ -28,7 +28,7 @@ fun loadLang(context: android.content.Context) {
 }
 
 /** Pick the text for the current language. */
-fun t(en: String, isl: String): String = if (L.lang == Lang.IS) isl else en
+fun t(en: String, isl: String): String = convertUnits(if (L.lang == Lang.IS) isl else en)
 
 /** A piece of text in both languages, for things worked out before they're shown (the model). */
 data class Tx(val en: String, val isl: String) {

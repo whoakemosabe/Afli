@@ -109,7 +109,8 @@ private fun DayCard(date: LocalDate, hours: List<HourScore>, fade: Boolean, toda
                 },
         )
         HourAxis(hours.map { it.t }, Modifier.fillMaxWidth().padding(top = 4.dp).height(14.dp))
-        AnimatedContent(sel, transitionSpec = { fadeIn() togetherWith fadeOut() }, label = "hour") { i ->
+        // A fixed-height detail area, so tapping a bar never pushes the days below around.
+        AnimatedContent(sel, transitionSpec = { fadeIn() togetherWith fadeOut() }, label = "hour", modifier = Modifier.fillMaxWidth().height(118.dp)) { i ->
             val h = i?.let { hours.getOrNull(it) }
             if (h == null) {
                 Text(t("Tap a bar to see that hour.", "Ýttu á súlu til að sjá þann tíma."), style = T.small.copy(color = C.faint), modifier = Modifier.padding(top = 8.dp))
@@ -122,8 +123,8 @@ private fun DayCard(date: LocalDate, hours: List<HourScore>, fade: Boolean, toda
                         Dot(C.safety(h.safety))
                         Text("  ${h.safety.label}", style = T.small)
                     }
-                    h.best?.let { Text(t("Best bet: ", "Best að reyna: ") + "${it.name} (${it.other})", style = T.small) }
-                    Text(h.reasons.take(3).joinToString(" · ") { it.label }, style = T.small)
+                    h.best?.let { Text(t("Best bet: ", "Best að reyna: ") + "${it.name} (${it.other})", style = T.small, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis) }
+                    Text(h.reasons.take(3).joinToString(" · ") { it.label }, style = T.small, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
                     if (nowLimit != null && h.t <= nowLimit) {
                         Text(
                             t("See this hour in Now  ›", "Sjá þennan tíma í Núna  ›"),

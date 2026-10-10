@@ -83,8 +83,8 @@ half4 main(float2 px) {
 """
 
 @Composable
-fun SeaBackground(modifier: Modifier = Modifier, calm: Boolean = false) {
-    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) AnimatedSea(modifier, calm)
+fun SeaBackground(modifier: Modifier = Modifier, calm: Boolean = false, still: Boolean = false) {
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) AnimatedSea(modifier, calm, still)
     else Canvas(modifier) {
         drawRect(Brush.verticalGradient(listOf(Color(0xFF175874), Color(0xFF092B44), Color(0xFF030C16))))
     }
@@ -92,16 +92,20 @@ fun SeaBackground(modifier: Modifier = Modifier, calm: Boolean = false) {
 
 @RequiresApi(Build.VERSION_CODES.TIRAMISU)
 @Composable
-private fun AnimatedSea(modifier: Modifier, calm: Boolean) {
+private fun AnimatedSea(modifier: Modifier, calm: Boolean, still: Boolean) {
     val shader = remember { RuntimeShader(Sea) }
     val brush = remember { ShaderBrush(shader) }
     val time = remember { mutableFloatStateOf(0f) }
-    LaunchedEffect(calm) {
+    LaunchedEffect(calm, still) {
+        // Still: one frame of the sea, no animation (saves battery); keeps the current moment.
+        if (still) return@LaunchedEffect
+        // Carry on from where the sea was, so turning it back on doesn't jump.
+        val base = time.floatValue
         val start = withFrameNanos { it }
         while (true) {
             withFrameNanos { now ->
                 val s = (now - start) / 1_000_000_000f
-                time.floatValue = if (calm) s * 0.15f else s
+                time.floatValue = base + if (calm) s * 0.15f else s
             }
         }
     }

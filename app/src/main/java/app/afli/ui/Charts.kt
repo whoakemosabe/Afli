@@ -59,7 +59,8 @@ fun TideCurve(hours: List<Hour>, now: Long, modifier: Modifier = Modifier, key: 
         val axis = size.height - 18.dp.toPx() // the time labels sit below this line
         val top = 20.dp.toPx()
         val bottom = axis - 20.dp.toPx()
-        fun x(t: Long) = (t - t0) / (t1 - t0) * size.width
+        val gx = ChartGutter.toPx()
+        fun x(t: Long) = gx + (t - t0) / (t1 - t0) * (size.width - gx)
         fun y(v: Double) = bottom - (v.toFloat() - lo) / span * (bottom - top)
         val line = Path()
         pts.forEachIndexed { i, h ->
@@ -74,14 +75,20 @@ fun TideCurve(hours: List<Hour>, now: Long, modifier: Modifier = Modifier, key: 
         val fill = Path().apply {
             addPath(line)
             lineTo(size.width, axis)
-            lineTo(0f, axis)
+            lineTo(gx, axis)
             close()
         }
 
         // Time axis: faint grid every 3 hours, labels underneath, the day at midnight.
         val nx = x(now)
         val gap = 30.dp.toPx() // keep tick labels clear of the "Now" label
-        drawLine(C.line, Offset(0f, axis), Offset(size.width, axis), 1.dp.toPx())
+        drawLine(C.line, Offset(gx, axis), Offset(size.width, axis), 1.dp.toPx())
+        // Height scale (metres from mean sea level) in the gutter.
+        listOf(hi.toDouble() to y(hi.toDouble()), lo.toDouble() to y(lo.toDouble())).forEach { (v, yy) ->
+            drawLine(C.line, Offset(gx, yy), Offset(size.width, yy), 1.dp.toPx())
+            val r = measurer.measure((if (v > 0) "+" else "") + app.afli.num(v, 1) + " m", T.small.copy(color = C.faint, fontSize = 10.sp, lineHeight = 12.sp))
+            drawText(r, topLeft = Offset(gx - r.size.width - 4.dp.toPx(), yy - r.size.height / 2f))
+        }
         val cal = Calendar.getInstance().apply {
             timeInMillis = t0.toLong()
             set(Calendar.MINUTE, 0); set(Calendar.SECOND, 0); set(Calendar.MILLISECOND, 0)
@@ -101,7 +108,7 @@ fun TideCurve(hours: List<Hour>, now: Long, modifier: Modifier = Modifier, key: 
             cal.add(Calendar.HOUR_OF_DAY, 3)
         }
 
-        clipRect(right = size.width * draw.value) {
+        clipRect(left = gx, right = gx + (size.width - gx) * draw.value) {
             drawPath(fill, Brush.verticalGradient(listOf(Color(0x552E8FB5), Color(0x002E8FB5)), startY = top, endY = axis))
             drawPath(line, C.sea, style = Stroke(2.5.dp.toPx(), cap = StrokeCap.Round))
         }
@@ -118,12 +125,12 @@ fun TideCurve(hours: List<Hour>, now: Long, modifier: Modifier = Modifier, key: 
             val shift = if (curve != 0.0) ((a - c) / (2 * curve)).coerceIn(-0.5, 0.5) else 0.0
             val at = pts[i].t + (shift * 3_600_000L).toLong()
             val px = x(at)
-            if (px > size.width * draw.value) continue
+            if (px > gx + (size.width - gx) * draw.value) continue
             drawCircle(C.foam.copy(alpha = 0.8f), 2.5.dp.toPx(), Offset(px, y(b)))
             val text = (if (isHigh) t("High ", "Flóð ") else t("Low ", "Fjara ")) + clock(roundTo10(at))
             label(measurer, text, Offset(px, if (isHigh) y(b) - 18.dp.toPx() else y(b) + 5.dp.toPx()))
         }
-        if (nx in 0f..size.width) {
+        if (nx in gx..size.width) {
             drawLine(C.brass.copy(alpha = 0.7f), Offset(nx, top - 8.dp.toPx()), Offset(nx, axis), 1.5.dp.toPx())
             val ny = pts.minByOrNull { kotlin.math.abs(it.t - now) }?.let { y(it.seaLevel) } ?: bottom
             drawCircle(C.brass, 5.dp.toPx(), Offset(nx, ny))
@@ -212,12 +219,14 @@ fun WindDial(fromDeg: Double, facing: Double?, modifier: Modifier = Modifier) {
 
 /** Hour labels under the forecast bars: every 6 hours (00, 06, 12, 18), centred on their bar. */
 @Composable
-fun HourAxis(times: List<Long>, modifier: Modifier = Modifier, points: Boolean = false) {
+fun HourAxis(times: List<Long>, modifier: Modifier = Modifier, points: Boolean = false, startPad: androidx.compose.ui.unit.Dp = 0.dp) {
     val measurer = rememberTextMeasurer()
     Canvas(modifier) {
         if (times.isEmpty()) return@Canvas
         // Bars sit in the middle of their slot; a line chart's points run edge to edge.
-        fun x(i: Int) = if (points) i * size.width / (times.size - 1).coerceAtLeast(1) else (i + 0.5f) * size.width / times.size
+        val x0 = startPad.toPx()
+        val w = size.width - x0
+        fun x(i: Int) = x0 + if (points) i * w / (times.size - 1).coerceAtLeast(1) else (i + 0.5f) * w / times.size
         val cal = Calendar.getInstance()
         times.forEachIndexed { i, ms ->
             cal.timeInMillis = ms
@@ -248,6 +257,9 @@ fun ScoreBars(scores: List<Int>, unsafe: List<Boolean>, selected: Int?, modifier
     }
 }
 
+/** Width of the left gutter that holds a chart's scale labels; axes below line up with it. */
+val ChartGutter = 40.dp
+
 /** A thin rounded bar filled to [fraction], for chances and progress. */
 @Composable
 fun Bar(fraction: Float, color: Color, modifier: Modifier = Modifier) {
@@ -273,8 +285,11 @@ fun Sparkline(
     bars: Boolean = false,
     floor: Double = 0.0,
     zeroBased: Boolean = false,
+    /** Labels for the top and bottom of the scale; when given, they sit in a gutter on the left. */
+    yLabel: ((Double) -> String)? = null,
 ) {
     val grow = remember(values.size) { Animatable(0f) }
+    val measurer = rememberTextMeasurer()
     LaunchedEffect(values.size) { grow.animateTo(1f, tween(700, easing = FastOutSlowInEasing)) }
     Canvas(modifier) {
         val ok = values.filter { !it.isNaN() }
@@ -288,11 +303,20 @@ fun Sparkline(
         }
         val span = (hi - lo).takeIf { it > 0 } ?: 1.0
         val pad = 3.dp.toPx()
-        val w = size.width
+        val gx = if (yLabel != null) ChartGutter.toPx() else 0f
+        val w = size.width - gx
         val hgt = size.height - pad * 2
-        fun x(i: Int) = if (bars) (i + 0.5f) * w / values.size else i * w / (values.size - 1).coerceAtLeast(1)
+        fun x(i: Int) = gx + if (bars) (i + 0.5f) * w / values.size else i * w / (values.size - 1).coerceAtLeast(1)
         fun y(v: Double) = pad + hgt - ((v - lo) / span).toFloat() * hgt
-        clipRect(right = size.width * grow.value) {
+        if (yLabel != null) {
+            // Scale: top and bottom values, with faint guide lines across.
+            listOf(hi to pad, lo to size.height - pad).forEach { (v, yy) ->
+                drawLine(C.line, Offset(gx, yy), Offset(size.width, yy), 1.dp.toPx())
+                val r = measurer.measure(yLabel(v), T.small.copy(color = C.faint, fontSize = 10.sp, lineHeight = 12.sp))
+                drawText(r, topLeft = Offset(gx - r.size.width - 4.dp.toPx(), (yy - r.size.height / 2f).coerceIn(0f, size.height - r.size.height)))
+            }
+        }
+        clipRect(left = gx, right = gx + w * grow.value) {
             if (bars) {
                 val bw = w / values.size * 0.6f
                 values.forEachIndexed { i, v ->
@@ -403,13 +427,21 @@ fun SunCurve(dayStart: Long, lat: Double, lon: Double, marker: Long, modifier: M
         val axis = size.height - 16.dp.toPx()
         val lo = minOf(-20.0, pts.minOf { it.second })
         val hi = maxOf(20.0, pts.maxOf { it.second })
-        fun x(tt: Long) = (tt - dayStart) / 86_400_000f * size.width
+        val gx = ChartGutter.toPx()
+        fun x(tt: Long) = gx + (tt - dayStart) / 86_400_000f * (size.width - gx)
         fun y(e: Double) = (axis - (e - lo) / (hi - lo) * axis).toFloat()
         // Low-light bands.
         day.lowLight.forEach { (a, b) ->
             drawRect(C.brass.copy(alpha = 0.16f), topLeft = Offset(x(a), 0f), size = androidx.compose.ui.geometry.Size(x(b) - x(a), axis))
         }
-        drawLine(C.mist.copy(alpha = 0.4f), Offset(0f, y(0.0)), Offset(size.width, y(0.0)), 1.dp.toPx())
+        drawLine(C.mist.copy(alpha = 0.4f), Offset(gx, y(0.0)), Offset(size.width, y(0.0)), 1.dp.toPx())
+        // Sun height scale: its highest point today, the horizon, and its lowest.
+        val top = pts.maxOf { it.second }
+        val bot = pts.minOf { it.second }
+        listOf(top, 0.0, bot).distinctBy { kotlin.math.round(it) }.forEach { v ->
+            val r = measurer.measure("${app.afli.num(v)}°", T.small.copy(color = if (v == 0.0) C.mist else C.faint, fontSize = 10.sp, lineHeight = 12.sp))
+            drawText(r, topLeft = Offset(gx - r.size.width - 4.dp.toPx(), (y(v) - r.size.height / 2f).coerceIn(0f, axis - r.size.height)))
+        }
         val line = Path()
         pts.forEachIndexed { i, (tt, e) -> if (i == 0) line.moveTo(x(tt), y(e)) else line.lineTo(x(tt), y(e)) }
         drawPath(line, C.brass, style = Stroke(2.dp.toPx(), cap = StrokeCap.Round))

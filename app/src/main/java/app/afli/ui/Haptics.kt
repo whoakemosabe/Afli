@@ -10,6 +10,7 @@ import android.view.View
  */
 object Haptics {
     fun toggle(view: View, on: Boolean) {
+        if (!app.afli.Prefs.haptics) return
         val c = when {
             Build.VERSION.SDK_INT >= 34 -> if (on) HapticFeedbackConstants.TOGGLE_ON else HapticFeedbackConstants.TOGGLE_OFF
             Build.VERSION.SDK_INT >= 30 -> if (on) HapticFeedbackConstants.CONFIRM else HapticFeedbackConstants.CLOCK_TICK
@@ -20,6 +21,7 @@ object Haptics {
 
     /** A segment snapped into place. */
     fun segment(view: View) {
+        if (!app.afli.Prefs.haptics) return
         view.performHapticFeedback(
             if (Build.VERSION.SDK_INT >= 34) HapticFeedbackConstants.SEGMENT_TICK else HapticFeedbackConstants.CLOCK_TICK
         )
@@ -27,6 +29,7 @@ object Haptics {
 
     /** Light, frequent tick for scrubbing across the hour bars. */
     fun scrub(view: View) {
+        if (!app.afli.Prefs.haptics) return
         view.performHapticFeedback(
             if (Build.VERSION.SDK_INT >= 34) HapticFeedbackConstants.SEGMENT_FREQUENT_TICK else HapticFeedbackConstants.CLOCK_TICK
         )
@@ -34,11 +37,13 @@ object Haptics {
 
     /** Button press. */
     fun tap(view: View) {
+        if (!app.afli.Prefs.haptics) return
         view.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
     }
 
     /** Something settled: the sheet snapped, the score landed in the header. */
     fun settle(view: View) {
+        if (!app.afli.Prefs.haptics) return
         view.performHapticFeedback(
             if (Build.VERSION.SDK_INT >= 30) HapticFeedbackConstants.GESTURE_END else HapticFeedbackConstants.CLOCK_TICK
         )
@@ -46,6 +51,7 @@ object Haptics {
 
     /** Something important happened: a trip started, a catch was logged. */
     fun confirm(view: View) {
+        if (!app.afli.Prefs.haptics) return
         view.performHapticFeedback(
             if (Build.VERSION.SDK_INT >= 30) HapticFeedbackConstants.CONFIRM else HapticFeedbackConstants.LONG_PRESS
         )
@@ -53,6 +59,7 @@ object Haptics {
 
     /** A long-press opened an explanation. */
     fun reveal(view: View) {
+        if (!app.afli.Prefs.haptics) return
         view.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
     }
 }

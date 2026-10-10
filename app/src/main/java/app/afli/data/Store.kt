@@ -131,6 +131,17 @@ class Store(context: Context) {
         tripsFile.writeText(a.toString())
     }
 
+    /** Deletes every trip. */
+    fun clearTrips() {
+        tripsFile.delete()
+    }
+
+    /** Forgets the spots saved from trips; the built-in harbours and lakes stay. */
+    fun forgetSpots() {
+        spotsFile.delete()
+        selectedSpot = null
+    }
+
     fun deleteTrip(id: String) {
         val a = JSONArray()
         trips().filter { it.id != id }.sortedBy { it.start }.forEach { a.put(tripJson(it)) }

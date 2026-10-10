@@ -27,6 +27,7 @@ class MainActivity : ComponentActivity() {
         )
         Repo.init(this)
         loadLang(this)
+        Prefs.load(this)
         Tips.bind(Repo.store())
         UpdateWatch.createChannel(this)
         UpdateWatch.schedule(this)

@@ -11,6 +11,7 @@ Liquid glass over an animated sea (Kyant's Backdrop 2.0 lens and frost on Androi
 - **Fix spot**: point the phone at the water to set which way it faces (so onshore and offshore wind count right), and mark it as harbour, open coast or lake.
 - **Help built in**: a three-card intro, a short coach-mark tour the first time you open Now and Log, and long-press on almost anything for a one-line explanation. A Guide tab explains every feature and every fish.
 - **Fish**: saithe, cod, mackerel, shorthorn sculpin, haddock, plaice and Atlantic wolffish at sea; Arctic char and brown trout in lakes. Each has a bait or lure tip.
+- **Settings**: wind in m/s, km/h or knots and temperature in °C or °F (every number and explanation follows), vibration on or off, a moving or still sea, and clearing trips or saved spots.
 - **English or Icelandic**: switch in Settings (or on the first intro screen). Everything changes at once, including days, compass points and decimal commas; fish names always show in both.
 
 No server, no account. Trips and spots stay on the phone.

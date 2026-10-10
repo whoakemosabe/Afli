@@ -7,6 +7,8 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
@@ -121,18 +123,19 @@ private fun ActiveTrip(trip: Trip, water: Water, onCatch: (String) -> Unit, onUn
         Text(t("${trip.catches.size} caught", if (oneIs(trip.catches.size)) "${trip.catches.size} veiddur" else "${trip.catches.size} veiddir"), style = T.title.copy(color = if (trip.catches.isEmpty()) C.mist else C.good))
         Spacer(Modifier.height(14.dp))
         SectionLabel(t("Caught one? Tap the fish", "Fékkstu fisk? Ýttu á hann"))
-        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Fish.forWater(water).forEach { f ->
-                val n = trip.catches.count { it.species == f.id }
-                GlassChip(
-                    text = if (n > 0) "${f.name} ×$n" else f.name,
-                    selected = n > 0,
-                    explain = "${f.name} (${f.other}). ${f.fact}",
-                    onClick = {
-                        Haptics.confirm(view)
-                        onCatch(f.id)
-                    },
-                )
+        // A fixed two-column grid: counts appear in place, so the buttons never jump around.
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Fish.forWater(water).chunked(2).forEach { pair ->
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    pair.forEach { f ->
+                        val n = trip.catches.count { it.species == f.id }
+                        CatchButton(f.name, n, "${f.name} (${f.other}). ${f.fact}", Modifier.weight(1f)) {
+                            Haptics.confirm(view)
+                            onCatch(f.id)
+                        }
+                    }
+                    if (pair.size == 1) Spacer(Modifier.weight(1f))
+                }
             }
         }
         Spacer(Modifier.height(14.dp))
@@ -143,6 +146,24 @@ private fun ActiveTrip(trip: Trip, water: Water, onCatch: (String) -> Unit, onUn
             })
             if (trip.catches.isNotEmpty()) GlassButton(t("Undo last", "Afturkalla"), style = T.small, onClick = onUndo)
         }
+    }
+}
+
+/** One fish to tap while fishing: its name on the left, the count in a fixed slot on the right. */
+@Composable
+private fun CatchButton(name: String, n: Int, explain: String, modifier: Modifier, onClick: () -> Unit) {
+    val backdrop = LocalBackdrop.current
+    val press = rememberPress()
+    val shape = androidx.compose.foundation.shape.RoundedCornerShape(50)
+    val tint = if (n > 0) androidx.compose.ui.graphics.Color(0x55D8B56A) else androidx.compose.ui.graphics.Color(0x2605080F)
+    val m = if (backdrop != null) modifier.glassControl(backdrop, shape, press = press.amount, tint = tint, layer = press.squishLayer(0.06f))
+    else modifier.squish(press, 0.06f).background(tint, shape)
+    Row(
+        m.pressable(press, explain, scaleBy = 0f, haptic = false, onClick = onClick).height(44.dp).padding(horizontal = 14.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(name, style = T.small.copy(color = if (n > 0) C.brass else C.foam), maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+        Text(if (n > 0) "×$n" else "", style = T.number.copy(color = C.brass), maxLines = 1, softWrap = false, modifier = Modifier.width(32.dp), textAlign = androidx.compose.ui.text.style.TextAlign.End)
     }
 }
 

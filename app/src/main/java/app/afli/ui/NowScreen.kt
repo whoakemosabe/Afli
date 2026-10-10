@@ -101,6 +101,11 @@ import app.afli.model.Species
 import app.afli.model.Spot
 import app.afli.model.Water
 import app.afli.t
+import app.afli.windText
+import app.afli.windNum
+import app.afli.tempText
+import app.afli.tempNum
+import app.afli.tempUnit
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.launch
 import java.time.Instant
@@ -224,12 +229,21 @@ fun NowScreen(
             if (now != null && spot != null && h != null) {
                 HeroCard(s, spot, now, sel, hours)
 
-                if (now.reasons.isNotEmpty()) {
-                    Column(Modifier.coachTarget("why")) {
-                        SectionLabel(t("Why", "Af hverju"))
-                        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                            now.reasons.take(6).forEach { r -> ReasonChip(r) }
-                        }
+                // One sliding row, always there, so the page below never jumps as reasons change.
+                Column(Modifier.coachTarget("why")) {
+                    SectionLabel(t("Why", "Af hverju"))
+                    Row(
+                        Modifier
+                            .bleed(16.dp)
+                            .fadeEdges(16.dp)
+                            .horizontalScroll(rememberScrollState())
+                            .height(48.dp)
+                            .padding(horizontal = 16.dp, vertical = 4.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        if (now.reasons.isEmpty()) Text(t("Nothing stands out this hour.", "Ekkert sérstakt þennan tíma."), style = T.small)
+                        now.reasons.take(6).forEach { r -> ReasonChip(r) }
                     }
                 }
 
@@ -280,7 +294,11 @@ fun MiniScore(hs: HourScore, isNow: Boolean, modifier: Modifier = Modifier, onCl
 private fun SpotChips(s: UiState, onSpot: (Spot) -> Unit) {
     val spot = s.spot
     Row(
-        Modifier.horizontalScroll(rememberScrollState()).padding(top = 4.dp),
+        Modifier
+            .bleed(16.dp)
+            .fadeEdges(16.dp)
+            .horizontalScroll(rememberScrollState())
+            .padding(horizontal = 16.dp, vertical = 4.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         val list = buildList {
@@ -306,6 +324,7 @@ private fun SpotChips(s: UiState, onSpot: (Spot) -> Unit) {
 private fun HeroCard(s: UiState, spot: Spot, now: HourScore, sel: Int, hours: List<Hour>) {
     val isNow = sel == s.nowIndex
     val view = LocalView.current
+    // Everything in this card has a fixed size, so swiping through hours never moves anything.
     GlassCard(Modifier.fillMaxWidth().coachTarget("score")) {
         // Where and when, and is it safe.
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -316,58 +335,81 @@ private fun HeroCard(s: UiState, spot: Spot, now: HourScore, sel: Int, hours: Li
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        if (isNow) t("RIGHT NOW", "NÚNA") else "${dayWord(now.t)} ${clock(now.t)}".uppercase(Locale.ROOT),
-                        style = T.label,
-                    )
-                    AnimatedVisibility(!isNow, enter = fadeIn(), exit = fadeOut()) {
-                        Text(
-                            "  ·  " + t("Back to now", "Aftur í núna"),
-                            style = T.label.copy(color = C.mist),
-                            modifier = Modifier.clickable(remember { MutableInteractionSource() }, null) {
-                                Haptics.tap(view)
-                                Scrub.jump = s.scores.getOrNull(s.nowIndex)?.t
-                            },
-                        )
-                    }
-                }
+                Text(
+                    if (isNow) t("RIGHT NOW", "NÚNA") else "${dayWord(now.t)} ${clock(now.t)}".uppercase(app.afli.L.locale),
+                    style = T.label,
+                    maxLines = 1,
+                    softWrap = false,
+                )
             }
+            Spacer(Modifier.width(8.dp))
             SafetyPill(now.safety, now.safetyWhy, Modifier.coachTarget("safety"))
         }
         Spacer(Modifier.height(14.dp))
 
-        // Score ring and the three best fish.
+        // Score ring and always three fish rows.
         Row(verticalAlignment = Alignment.CenterVertically) {
             ScoreRing(now.score, now.bite, Modifier.size(128.dp))
             Spacer(Modifier.width(16.dp))
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text(t("BEST FISH", "BESTU FISKARNIR"), style = T.label)
+                Text(t("BEST FISH", "BESTU FISKARNIR"), style = T.label, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 val ranked = now.perSpecies.filter { it.second > 0 }.take(3).ifEmpty { now.perSpecies.take(3) }
-                ranked.forEach { (sp, v) -> FishChance(sp, v) }
+                for (k in 0 until 3) {
+                    val row = ranked.getOrNull(k)
+                    if (row != null) FishChance(row.first, row.second)
+                    else Spacer(Modifier.height(36.dp))
+                }
             }
         }
         Spacer(Modifier.height(14.dp))
 
-        // Tide, best time, bait.
+        // Tide, best time, bait: always the same lines, so the card keeps its height.
         Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            if (spot.water == Water.SEA) tideLine(hours, sel)?.let { InfoLine(t("Tide", "Sjávarföll"), it) }
-            s.window?.let { w ->
-                val nowMs = System.currentTimeMillis()
-                val from = if (w.start <= nowMs) t("now", "núna") else "${dayWord(w.start).lowercase(app.afli.L.locale)} ${clock(w.start)}"
-                InfoLine(
-                    t("Best", "Best"),
-                    "$from – ${clock(w.end)} · ${w.peak}  ›",
-                    accent = true,
-                    onClick = {
+            if (spot.water == Water.SEA) InfoLine(t("Tide", "Sjávarföll"), tideLine(hours, sel) ?: "–")
+            val w = s.window
+            val nowMs = System.currentTimeMillis()
+            InfoLine(
+                t("Best", "Best"),
+                if (w == null) "–" else {
+                    val from = if (w.start <= nowMs) t("now", "núna") else "${dayWord(w.start).lowercase(app.afli.L.locale)} ${clock(w.start)}"
+                    "$from – ${clock(w.end)} · ${w.peak}  ›"
+                },
+                accent = w != null,
+                onClick = w?.let {
+                    {
                         Haptics.tap(view)
-                        Scrub.jump = maxOf(w.start, s.scores.getOrNull(s.nowIndex)?.t ?: w.start)
-                    },
-                )
-            }
-            now.best?.let { b -> InfoLine(t("Try", "Prófaðu"), b.bait.toString()) }
+                        Scrub.jump = maxOf(it.start, s.scores.getOrNull(s.nowIndex)?.t ?: it.start)
+                    }
+                },
+            )
+            InfoLine(t("Try", "Prófaðu"), now.best?.bait?.toString() ?: "–", lines = 2)
         }
         Spacer(Modifier.height(12.dp))
+
+        // Above the strip: a hint on the left, Back to now on the right. The button keeps its
+        // place and only fades, so nothing shifts when it appears.
+        val back by animateFloatAsState(if (isNow) 0f else 1f, tween(220), label = "back")
+        Row(Modifier.fillMaxWidth().height(30.dp), verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                t("Swipe through the next 48 hours", "Flettu í gegnum næstu 48 tíma"),
+                style = T.small.copy(fontSize = 11.sp, color = C.faint),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f),
+            )
+            Box(
+                Modifier
+                    .graphicsLayer { alpha = back }
+                    .border(1.dp, C.brass.copy(alpha = 0.6f * back), RoundedCornerShape(50))
+                    .clickable(remember { MutableInteractionSource() }, null, enabled = !isNow) {
+                        Haptics.tap(view)
+                        Scrub.jump = s.scores.getOrNull(s.nowIndex)?.t
+                    }
+                    .padding(horizontal = 12.dp, vertical = 5.dp),
+            ) {
+                Text(t("Back to now", "Aftur í núna"), style = T.small.copy(fontSize = 12.sp, color = C.brass), maxLines = 1, softWrap = false)
+            }
+        }
         TimeStrip(s, sel, Modifier.coachTarget("strip"))
     }
 }
@@ -387,13 +429,26 @@ private fun tideLine(hours: List<Hour>, i: Int): String? {
 private fun roundTo10(t: Long): Long = (t + 300_000L) / 600_000L * 600_000L
 
 @Composable
-private fun InfoLine(label: String, text: String, accent: Boolean = false, onClick: (() -> Unit)? = null) {
+private fun InfoLine(label: String, text: String, accent: Boolean = false, lines: Int = 1, onClick: (() -> Unit)? = null) {
     Row(
         Modifier.fillMaxWidth().let { if (onClick != null) it.clickable(remember { MutableInteractionSource() }, null, onClick = onClick) else it },
         verticalAlignment = Alignment.Top,
     ) {
-        Text(label.uppercase(app.afli.L.locale), style = T.label.copy(fontSize = 11.sp), modifier = Modifier.width(76.dp).padding(top = 2.dp))
-        Text(text, style = T.small.copy(color = if (accent) C.brass else C.foam), modifier = Modifier.weight(1f))
+        Text(
+            label.uppercase(app.afli.L.locale),
+            style = T.label.copy(fontSize = 11.sp),
+            maxLines = 1,
+            softWrap = false,
+            modifier = Modifier.width(96.dp).padding(top = 2.dp),
+        )
+        Text(
+            text,
+            style = T.small.copy(color = if (accent) C.brass else C.foam),
+            minLines = lines,
+            maxLines = lines,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f),
+        )
     }
 }
 
@@ -449,7 +504,7 @@ fun ScoreRing(score: Int, bite: Bite, modifier: Modifier = Modifier) {
 
 @Composable
 private fun FishChance(sp: Species, v: Int) {
-    Row(Modifier.explains("${sp.name} (${sp.other}). ${sp.fact}\n\n" + t("Try: ", "Prófaðu: ") + sp.bait), verticalAlignment = Alignment.CenterVertically) {
+    Row(Modifier.height(36.dp).explains("${sp.name} (${sp.other}). ${sp.fact}\n\n" + t("Try: ", "Prófaðu: ") + sp.bait), verticalAlignment = Alignment.CenterVertically) {
         Column(Modifier.weight(1f)) {
             Text(sp.name, style = T.heading.copy(fontSize = 15.sp), maxLines = 1, overflow = TextOverflow.Ellipsis)
             Text(sp.other, style = T.small.copy(fontSize = 11.sp, lineHeight = 13.sp, color = C.faint), maxLines = 1, overflow = TextOverflow.Ellipsis)
@@ -598,13 +653,17 @@ private fun HourTick(hs: HourScore, i: Int, selected: Boolean, modifier: Modifie
     }
 }
 
-/** Fades the left and right ends of a strip so it slides in and out of nowhere. */
-private fun Modifier.fadeEdges(): Modifier = this
+/**
+ * Fades the left and right ends of a scrolling row so items slide in and out of nowhere.
+ * [edge] is how wide each fade is; null means 12% of the width.
+ */
+fun Modifier.fadeEdges(edge: Dp? = null): Modifier = this
     .graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }
     .drawWithContent {
         drawContent()
+        val f = edge?.let { (it.toPx() / size.width).coerceIn(0.01f, 0.45f) } ?: 0.12f
         drawRect(
-            Brush.horizontalGradient(0f to Color.Transparent, 0.12f to Color.Black, 0.88f to Color.Black, 1f to Color.Transparent),
+            Brush.horizontalGradient(0f to Color.Transparent, f to Color.Black, 1f - f to Color.Black, 1f to Color.Transparent),
             blendMode = BlendMode.DstIn,
         )
     }
@@ -680,16 +739,15 @@ private fun TileCard(tile: Tile, open: Boolean, modifier: Modifier, onClick: () 
         glow = if (open) C.brass else null,
         onClick = onClick,
     ) {
-        Row {
-            Column(Modifier.weight(1f)) {
-                Text(tile.label.uppercase(app.afli.L.locale), style = T.label.copy(fontSize = 11.sp), maxLines = 1)
-                Spacer(Modifier.height(4.dp))
-                Text(tile.value, style = T.title.copy(fontSize = 20.sp), maxLines = 1, overflow = TextOverflow.Ellipsis)
-            }
+        // Label across the full width; value and picture under it; two fixed lines below.
+        Text(tile.label.uppercase(app.afli.L.locale), style = T.label.copy(fontSize = 11.sp), maxLines = 1, overflow = TextOverflow.Ellipsis)
+        Spacer(Modifier.height(4.dp))
+        Row(Modifier.height(40.dp), verticalAlignment = Alignment.CenterVertically) {
+            Text(tile.value, style = T.title.copy(fontSize = 20.sp), maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
             tile.mini(Modifier.size(40.dp))
         }
         Spacer(Modifier.height(4.dp))
-        Text(tile.sub, style = T.small.copy(fontSize = 12.sp, lineHeight = 16.sp), maxLines = 2, overflow = TextOverflow.Ellipsis)
+        Text(tile.sub, style = T.small.copy(fontSize = 12.sp, lineHeight = 16.sp), minLines = 2, maxLines = 2, overflow = TextOverflow.Ellipsis)
     }
 }
 
@@ -709,8 +767,8 @@ private fun buildTiles(s: UiState, spot: Spot, hours: List<Hour>, sel: Int, h: H
     // Wind.
     out += Tile(
         "wind", t("Wind", "Vindur"),
-        "${fmt(h.wind)} m/s",
-        "${compass(h.windDir)} · " + t("gusts", "hviður") + " ${fmt(h.gust)}",
+        windText(h.wind),
+        "${compass(h.windDir)} · " + t("gusts", "hviður") + " ${windNum(h.gust)}",
         t("Average wind and where it's from. Gusts are the strongest bursts; over 15 m/s is hard work on the shore.", "Meðalvindur og úr hvaða átt. Hviður eru snörpustu vindkviðurnar; yfir 15 m/s er erfitt að veiða frá landi."),
         mini = { m -> MiniWind(h.windDir, m) },
         full = {
@@ -719,8 +777,8 @@ private fun buildTiles(s: UiState, spot: Spot, hours: List<Hour>, sel: Int, h: H
                 WindDial(h.windDir, spot.facing, Modifier.size(132.dp).explains(t("The arrow shows where the wind is blowing to; the brass tick on the rim is which way the water is from your spot.", "Örin sýnir hvert vindurinn blæs; gyllta strikið á hringnum sýnir í hvaða átt þú kastar.")))
                 Spacer(Modifier.width(14.dp))
                 Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Stat(t("Wind", "Vindur"), "${fmt(h.wind)} m/s")
-                    Stat(t("Gusts", "Hviður"), "${fmt(h.gust)} m/s")
+                    Stat(t("Wind", "Vindur"), windText(h.wind))
+                    Stat(t("Gusts", "Hviður"), windText(h.gust))
                     Stat(t("From", "Átt"), "${compass(h.windDir)} (${fmt(h.windDir)}°)")
                     spot.facing?.let { f ->
                         val on = kotlin.math.cos(Math.toRadians(h.windDir - f))
@@ -730,14 +788,14 @@ private fun buildTiles(s: UiState, spot: Spot, hours: List<Hour>, sel: Int, h: H
             }
             Spacer(Modifier.height(10.dp))
             Text(t("24 hours from ", "Sólarhringur frá ") + whenLabel(s, sel, h.t), style = T.small)
-            Sparkline(sl.map { it.wind }, Modifier.fillMaxWidth().height(56.dp), C.foam, marker = mk, floor = 4.0, zeroBased = true)
-            HourAxis(sl.map { it.t }, Modifier.fillMaxWidth().height(14.dp), points = true)
+            Sparkline(sl.map { it.wind }, Modifier.fillMaxWidth().height(64.dp), C.foam, marker = mk, floor = 4.0, zeroBased = true, yLabel = { windText(it) })
+            HourAxis(sl.map { it.t }, Modifier.fillMaxWidth().height(14.dp), points = true, startPad = ChartGutter)
             s.live?.let { l ->
                 Spacer(Modifier.height(8.dp))
                 Text(
                     t(
-                        "Live: ${l.station} (${fmt(l.distanceKm)} km) ${fmt(l.wind)} m/s, gusts ${fmt(l.gust)}. The next 12 hours are corrected to match.",
-                        "Rauntími: ${l.station} (${fmt(l.distanceKm)} km) ${fmt(l.wind)} m/s, hviður ${fmt(l.gust)}. Næstu 12 tímar eru leiðréttir miðað við mælinguna.",
+                        "Live: ${l.station} (${fmt(l.distanceKm)} km) ${fmt(l.wind)} m/s, gusts ${fmt(l.gust)} m/s. The next 12 hours are corrected to match.",
+                        "Rauntími: ${l.station} (${fmt(l.distanceKm)} km) ${fmt(l.wind)} m/s, hviður ${fmt(l.gust)} m/s. Næstu 12 tímar eru leiðréttir miðað við mælinguna.",
                     ),
                     style = T.small,
                 )
@@ -796,19 +854,19 @@ private fun buildTiles(s: UiState, spot: Spot, hours: List<Hour>, sel: Int, h: H
         val wave = h.wave
         out += Tile(
             "sea", t("Sea", "Sjór"),
-            "${fmt(h.sst, 1)} °C",
+            tempText(h.sst, 1),
             t("Waves", "Öldur") + " ${fmt(wave, 1)} m" + if (spot.sheltered) t(" · less in harbour", " · minni í höfn") else "",
             t("Sea surface temperature and offshore wave height (model). Harbours feel only about a third of the waves.", "Sjávarhiti við yfirborð og ölduhæð úti fyrir (líkan). Í höfnum er aldan bara um þriðjungur af því."),
             mini = { m -> WaveGlyph(if (spot.sheltered) wave * 0.3 else wave, m) },
             full = {
                 val (past, mk) = slice(7 * 24, 48)
                 Text(t("Sea temperature, the week before and two days after", "Sjávarhiti, vikuna á undan og tvo daga á eftir"), style = T.small)
-                Sparkline(past.map { it.sst }, Modifier.fillMaxWidth().height(56.dp), C.sea, marker = mk, floor = 1.5)
+                Sparkline(past.map { it.sst }, Modifier.fillMaxWidth().height(64.dp), C.sea, marker = mk, floor = 1.5, yLabel = { tempNum(it, 1) + "°" })
                 Spacer(Modifier.height(8.dp))
                 val (wv, wk) = slice(0, 24)
                 Text(t("Waves, 24 hours from ", "Öldur, sólarhringur frá ") + whenLabel(s, sel, h.t), style = T.small)
-                Sparkline(wv.map { it.wave }, Modifier.fillMaxWidth().height(48.dp), C.foam, marker = wk, floor = 1.0, zeroBased = true)
-                HourAxis(wv.map { it.t }, Modifier.fillMaxWidth().height(14.dp), points = true)
+                Sparkline(wv.map { it.wave }, Modifier.fillMaxWidth().height(56.dp), C.foam, marker = wk, floor = 1.0, zeroBased = true, yLabel = { fmt(it, 1) + " m" })
+                HourAxis(wv.map { it.t }, Modifier.fillMaxWidth().height(14.dp), points = true, startPad = ChartGutter)
                 Spacer(Modifier.height(8.dp))
                 s.sea?.let { r ->
                     Text(
@@ -831,7 +889,7 @@ private fun buildTiles(s: UiState, spot: Spot, hours: List<Hour>, sel: Int, h: H
     val d3 = Model.pressureChange(hours, sel)
     val trend = Model.pressureTrend(hours, sel)
     out += Tile(
-        "pressure", t("Pressure", "Loftþrýstingur"),
+        "pressure", t("Pressure", "Þrýstingur"),
         "${fmt(h.pressure)} hPa",
         if (d3.isNaN()) "–" else trend.label + " · " + (if (d3 >= 0) "+" else "−") + fmt(kotlin.math.abs(d3), 1) + t(" in 3 h", " á 3 klst."),
         t(
@@ -844,9 +902,9 @@ private fun buildTiles(s: UiState, spot: Spot, hours: List<Hour>, sel: Int, h: H
         },
         full = {
             val (sl, mk) = slice(24, 24)
-            Text(t("24 hours either side", "Sólarhring fyrir og eftir"), style = T.small)
-            Sparkline(sl.map { it.pressure }, Modifier.fillMaxWidth().height(72.dp), C.foam, marker = mk, floor = 6.0)
-            HourAxis(sl.map { it.t }, Modifier.fillMaxWidth().height(14.dp), points = true)
+            Text(t("hPa, 24 hours either side", "hPa, sólarhring fyrir og eftir"), style = T.small)
+            Sparkline(sl.map { it.pressure }, Modifier.fillMaxWidth().height(72.dp), C.foam, marker = mk, floor = 6.0, yLabel = { fmt(it) })
+            HourAxis(sl.map { it.t }, Modifier.fillMaxWidth().height(14.dp), points = true, startPad = ChartGutter)
             Spacer(Modifier.height(6.dp))
             val lo = sl.mapNotNull { it.pressure.takeUnless(Double::isNaN) }.minOrNull()
             val hi = sl.mapNotNull { it.pressure.takeUnless(Double::isNaN) }.maxOrNull()
@@ -902,9 +960,9 @@ private fun buildTiles(s: UiState, spot: Spot, hours: List<Hour>, sel: Int, h: H
     val rain = h.precip
     out += Tile(
         "air", t("Air", "Loft"),
-        "${fmt(h.airTemp)} °C",
+        tempText(h.airTemp),
         when {
-            !feels.isNaN() && h.airTemp - feels >= 2 -> t("Feels like ", "Vindkæling ") + "${fmt(feels)} °C"
+            !feels.isNaN() && h.airTemp - feels >= 2 -> t("Feels like ", "Vindkæling ") + tempText(feels)
             !rain.isNaN() && rain >= 0.1 -> t("Rain ", "Úrkoma ") + "${fmt(rain, 1)} mm"
             !h.cloud.isNaN() -> t("Cloud ", "Ský ") + "${fmt(h.cloud)}%"
             else -> "–"
@@ -917,14 +975,14 @@ private fun buildTiles(s: UiState, spot: Spot, hours: List<Hour>, sel: Int, h: H
         full = {
             val (sl, mk) = slice(0, 24)
             Text(t("Temperature, 24 hours from ", "Hiti, sólarhringur frá ") + whenLabel(s, sel, h.t), style = T.small)
-            Sparkline(sl.map { it.airTemp }, Modifier.fillMaxWidth().height(56.dp), C.ok, marker = mk, floor = 3.0)
+            Sparkline(sl.map { it.airTemp }, Modifier.fillMaxWidth().height(64.dp), C.ok, marker = mk, floor = 3.0, yLabel = { tempNum(it) + "°" })
             Spacer(Modifier.height(6.dp))
             Text(t("Rain (mm per hour)", "Úrkoma (mm á klst.)"), style = T.small)
-            Sparkline(sl.map { it.precip }, Modifier.fillMaxWidth().height(40.dp), C.sea, bars = true, floor = 1.0, zeroBased = true)
-            HourAxis(sl.map { it.t }, Modifier.fillMaxWidth().height(14.dp))
+            Sparkline(sl.map { it.precip }, Modifier.fillMaxWidth().height(44.dp), C.sea, bars = true, floor = 1.0, zeroBased = true, yLabel = { fmt(it, 1) + " mm" })
+            HourAxis(sl.map { it.t }, Modifier.fillMaxWidth().height(14.dp), startPad = ChartGutter)
             Spacer(Modifier.height(6.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                Stat(t("Feels", "Vindkæling"), "${fmt(feels)} °C")
+                Stat(t("Feels", "Vindkæling"), tempText(feels))
                 Stat(t("Cloud", "Ský"), "${fmt(h.cloud)}%")
             }
         },
@@ -934,9 +992,10 @@ private fun buildTiles(s: UiState, spot: Spot, hours: List<Hour>, sel: Int, h: H
 
 @Composable
 private fun Stat(label: String, value: String) {
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        Text(label, style = T.small, modifier = Modifier.width(64.dp))
-        Text(value, style = T.number)
+    // Label above value, so long words in either language never get cut.
+    Column {
+        Text(label, style = T.small.copy(fontSize = 11.sp, lineHeight = 13.sp, color = C.faint), maxLines = 1)
+        Text(value, style = T.number, maxLines = 1, softWrap = false)
     }
 }
 
@@ -962,6 +1021,7 @@ private fun FishRow(s: UiState, spot: Spot) {
         Row(
             Modifier
                 .bleed(16.dp)
+                .fadeEdges(16.dp)
                 .horizontalScroll(rememberScrollState())
                 .height(IntrinsicSize.Min)
                 .padding(horizontal = 16.dp, vertical = 4.dp),
@@ -1002,7 +1062,7 @@ private fun FishCard(sp: Species, v: Int, at: Long?, water: Double, modifier: Mo
                 Dot(if (fit >= 1.0) C.good else if (fit > 0.3) C.ok else C.bad, 7.dp)
                 Spacer(Modifier.width(6.dp))
                 Text(
-                    t("Sea ", "Sjór ") + "${fmt(water, 1)} °C · " + t("likes ", "kýs ") + "${fmt(sp.optLo)}–${fmt(sp.optHi)} °C",
+                    t("Sea ", "Sjór ") + tempText(water, 1) + " · " + t("likes ", "kýs ") + "${tempNum(sp.optLo)}–${tempNum(sp.optHi)} $tempUnit",
                     style = T.small,
                 )
             }

@@ -39,6 +39,11 @@ import app.afli.model.Fish
 import app.afli.L
 import app.afli.Lang
 import app.afli.t
+import app.afli.windText
+import app.afli.windNum
+import app.afli.tempText
+import app.afli.tempNum
+import app.afli.tempUnit
 import kotlinx.coroutines.launch
 import kotlin.math.absoluteValue
 
@@ -69,7 +74,7 @@ fun GuideScreen(top: Dp, scroll: ScrollState) {
                 Spacer(Modifier.height(4.dp))
                 Text(t("Try: ", "Prófaðu: ") + f.bait, style = T.small.copy(color = C.foam))
                 Text(
-                    t("Happiest in ", "Kýs ") + "${fmt(f.optLo)}–${fmt(f.optHi)} °C" + t(" water", "") + if (f.reach < 0.5) t(" · rare from shore", " · veiðist sjaldan frá landi") else "",
+                    t("Happiest in ", "Kýs ") + "${tempNum(f.optLo)}–${tempNum(f.optHi)} $tempUnit" + t(" water", "") + if (f.reach < 0.5) t(" · rare from shore", " · veiðist sjaldan frá landi") else "",
                     style = T.small.copy(color = C.faint),
                 )
             }

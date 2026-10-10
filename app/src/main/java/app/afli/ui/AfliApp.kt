@@ -152,7 +152,7 @@ fun AfliApp() {
 
     Box(Modifier.fillMaxSize().background(C.navy)) {
         Box(Modifier.fillMaxSize().layerBackdrop(pageBackdrop)) {
-            SeaBackground(Modifier.fillMaxSize().layerBackdrop(backdrop), calm)
+            SeaBackground(Modifier.fillMaxSize().layerBackdrop(backdrop), calm, still = !app.afli.Prefs.animatedSea)
             CompositionLocalProvider(LocalBackdrop provides backdrop) {
                 if (!onboarded) {
                     Onboarding {
@@ -207,7 +207,7 @@ fun AfliApp() {
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Column(Modifier.weight(1f)) {
-                    Text(tabs[tab], style = T.title)
+                    Text(tabs[tab], style = T.title, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
                     Text(
                         when {
                             s.loading -> t("Updating…", "Sæki…")
