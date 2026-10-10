@@ -65,8 +65,9 @@ fun duration(mins: Int): String =
 val Spot.label: String get() = spotLabel(id, name)
 
 fun spotLabel(id: String, name: String): String = when (id) {
-    "keflavik" -> t("Keflavík harbour", "Keflavíkurhöfn")
-    "njardvik" -> t("Njarðvík harbour", "Njarðvíkurhöfn")
+    // Built-in names in both languages, unless he's renamed them.
+    "keflavik" -> if (name == "Keflavík harbour") t("Keflavík harbour", "Keflavíkurhöfn") else name
+    "njardvik" -> if (name == "Njarðvík harbour") t("Njarðvík harbour", "Njarðvíkurhöfn") else name
     "here" -> if (name == "Here") t("Here", "Hér") else name
     else -> name
 }

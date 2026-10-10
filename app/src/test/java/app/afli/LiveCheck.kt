@@ -38,6 +38,16 @@ class LiveCheck {
         out.appendLine("| Open-Meteo forecast (${fc.weatherModel}) | ${fc.hours.size} hours; now wind ${n(h.wind)} m/s, gusts ${n(h.gust)}, pressure ${n(h.pressure, 0)} hPa |")
         out.appendLine("| Open-Meteo Marine | sea ${n(h.sst)} °C, waves ${n(h.wave)} m, sea level ${n(h.seaLevel, 2)} m; ${fc.hours.count { !it.seaLevel.isNaN() }} hours with tide |")
         out.appendLine("| Veðurstofa live | ${live?.let { "${it.station} (${it.distanceKm.roundToInt()} km): ${n(it.wind)} m/s, gusts ${n(it.gust)}, ${n(it.pressure, 0)} hPa" } ?: "missing (${liveR.exceptionOrNull()?.let { it::class.simpleName + ": " + it.message } ?: "no station within 40 km"})"} |")
+        // Coast Guard tide table: the next turns at Keflavík from the bundled table.
+        val rvk = app.afli.data.TideTable.parse(File("src/main/assets/tides/reykjavik_2026.csv").readText())
+        val kef = app.afli.data.TideTable.ports.first { it.name == "Keflavík" }
+        val turns = app.afli.data.TideTable.turnsFor(kef, rvk).filter { it.t >= now }.take(2)
+        val fmt = java.time.format.DateTimeFormatter.ofPattern("d MMM HH:mm").withZone(java.time.ZoneOffset.UTC)
+        out.appendLine("| Coast Guard tide table | ${if (turns.isEmpty()) "missing: the table has ended, add next year's" else turns.joinToString(", ") { (if (it.h > 2.2) "high " else "low ") + fmt.format(java.time.Instant.ofEpochMilli(it.t)) + " (" + n(it.h) + " m)" }}; table runs to ${fmt.format(java.time.Instant.ofEpochMilli(rvk.last().t))} |")
+        // Hafrannsóknastofnun sea temperature sensor.
+        val seaR = runBlocking { runCatching { Feeds.seaTemp(spot.lat, spot.lon) } }
+        val sea = seaR.getOrNull()
+        out.appendLine("| Hafrannsóknastofnun sea temperature | ${sea?.let { "${it.station} (${it.distanceKm.roundToInt()} km): ${n(it.temp)} °C at ${fmt.format(java.time.Instant.ofEpochMilli(it.time))}" } ?: "missing (${seaR.exceptionOrNull()?.let { it::class.simpleName + ": " + it.message } ?: "no recent reading within 60 km"})"} |")
         out.appendLine("| Model | score ${s.score} (${s.bite.label}), ${s.safety.label}, best ${s.best?.en ?: "none"}; why: ${s.reasons.take(3).joinToString { it.label }} |")
         File("build").mkdirs()
         File("build/live-check.md").writeText(out.toString())

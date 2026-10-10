@@ -31,6 +31,7 @@ class MainActivity : ComponentActivity() {
         Tips.bind(Repo.store())
         UpdateWatch.createChannel(this)
         UpdateWatch.schedule(this)
+        app.afli.update.BiteAlerts.sync(this)
         UpdateWatch.waitingVersion.value = UpdateWatch.waiting(this)
         handleIntent(intent)
         setContent {
@@ -56,6 +57,12 @@ class MainActivity : ComponentActivity() {
 
     /** The "update ready" notification asks to open the update section. */
     private fun handleIntent(intent: Intent?) {
+        // A bite alert opens Now on the hour it's about.
+        val jump = intent?.getLongExtra(app.afli.update.BiteAlerts.EXTRA_JUMP, 0L) ?: 0L
+        if (jump > 0) {
+            intent?.removeExtra(app.afli.update.BiteAlerts.EXTRA_JUMP)
+            app.afli.ui.Scrub.jump = jump
+        }
         if (intent?.getBooleanExtra(UpdateWatch.EXTRA_OPEN_UPDATES, false) == true) {
             intent.removeExtra(UpdateWatch.EXTRA_OPEN_UPDATES)
             UpdateWatch.openUpdates.value = true

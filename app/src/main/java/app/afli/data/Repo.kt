@@ -40,6 +40,8 @@ data class UiState(
     val tidePort: String? = null,
     /** True when the numbers shown are the last saved forecast because the network failed. */
     val offline: Boolean = false,
+    /** The trip just deleted, kept for a few seconds so it can be undone. */
+    val lastDeleted: Trip? = null,
     val scores: List<HourScore> = emptyList(),
     val nowIndex: Int = 0,
     val window: Window? = null,
@@ -212,7 +214,8 @@ object Repo {
             // A lake's surface follows the past week's air temperature, a little warmer in summer.
             hours.filter { it.t in (now - 7 * 86_400_000L)..now && !it.airTemp.isNaN() }.map { it.airTemp }.average().let { if (it.isNaN()) it else it + 1.0 }
         } else Double.NaN
-        return Scored(Model.scoreAll(hours, spot, lakeTemp), nowIndex, hours, tidePort)
+        val boost = app.afli.model.Learn.boost(spot, db.trips())
+        return Scored(Model.scoreAll(hours, spot, lakeTemp, boost), nowIndex, hours, tidePort)
     }
 
     // ---- spots ----
@@ -290,6 +293,7 @@ object Repo {
         val done = t.copy(end = System.currentTimeMillis())
         db.saveTrip(done)
         state.update { it.copy(activeTrip = null, trips = db.trips()) }
+        rescore()
     }
 
     fun clearTrips() {
@@ -304,7 +308,90 @@ object Repo {
     }
 
     fun deleteTrip(id: String) {
+        val gone = db.trips().firstOrNull { it.id == id }
         db.deleteTrip(id)
-        state.update { it.copy(trips = db.trips(), activeTrip = if (it.activeTrip?.id == id) null else it.activeTrip) }
+        state.update { it.copy(trips = db.trips(), activeTrip = if (it.activeTrip?.id == id) null else it.activeTrip, lastDeleted = gone) }
+        rescore()
+    }
+
+    /** Puts back the trip that was just deleted. */
+    fun undoDelete() {
+        val t = state.value.lastDeleted ?: return
+        db.saveTrip(t)
+        state.update { it.copy(trips = db.trips(), lastDeleted = null, activeTrip = if (t.end == null) t else it.activeTrip) }
+        rescore()
+    }
+
+    fun forgetDeleted() {
+        val t = state.value.lastDeleted ?: return
+        // The trip is gone for good now, so its photos can go too.
+        t.photos.forEach { java.io.File(db.photoDir, it).delete() }
+        state.update { it.copy(lastDeleted = null) }
+    }
+
+    /** Saves changes to a trip (sizes, note, photos, catches). */
+    fun updateTrip(trip: Trip) {
+        db.saveTrip(trip)
+        state.update { it.copy(trips = db.trips(), activeTrip = if (it.activeTrip?.id == trip.id) trip else it.activeTrip) }
+    }
+
+    /** Saves a photo for a trip as a JPEG in the app's own folder. */
+    fun addPhoto(trip: Trip, bitmap: android.graphics.Bitmap) {
+        val name = "${trip.id}-${System.currentTimeMillis()}.jpg"
+        runCatching {
+            java.io.File(db.photoDir, name).outputStream().use { bitmap.compress(android.graphics.Bitmap.CompressFormat.JPEG, 88, it) }
+            updateTrip(trip.copy(photos = trip.photos + name))
+        }
+    }
+
+    fun removePhoto(trip: Trip, name: String) {
+        java.io.File(db.photoDir, name).delete()
+        updateTrip(trip.copy(photos = trip.photos - name))
+    }
+
+    fun photoFile(name: String) = java.io.File(db.photoDir, name)
+
+    // ---- spots ----
+
+    fun renameSpot(id: String, name: String) {
+        db.renameSpot(id, name)
+        state.update { st -> st.copy(spots = db.spots(), spot = st.spot?.let { sp -> if (sp.id == id) db.spots().firstOrNull { it.id == id } ?: sp else sp }) }
+    }
+
+    fun deleteSpot(context: Context, id: String) {
+        db.deleteSpot(id)
+        val wasShown = state.value.spot?.id == id
+        state.update { it.copy(spots = db.spots()) }
+        if (wasShown) refresh(context)
+    }
+
+    /** Scores the current forecast again (after trips change what Afli has learned). */
+    fun rescore() {
+        val st = state.value
+        val fc = st.forecast ?: return
+        val spot = st.spot ?: return
+        scope.launch {
+            val scored = withContext(Dispatchers.Default) { scoreFor(fc, spot, st.live, st.sea) }
+            state.update { it.copy(scores = scored.scores, nowIndex = scored.nowIndex, hours = scored.hours, tidePort = scored.tidePort, window = Model.nextWindow(scored.scores, System.currentTimeMillis())) }
+        }
+    }
+
+    /**
+     * A quick forecast and score for one spot, for the background bite alerts. No live station
+     * correction; tide tables and what he's caught there still apply.
+     */
+    suspend fun scoreInBackground(context: Context, spot: Spot): List<HourScore> {
+        init(context)
+        val fc = Feeds.forecast(spot.lat, spot.lon)
+        db.saveForecast(spot.id, fc)
+        return withContext(Dispatchers.Default) { scoreFor(fc, spot, null, null).scores }
+    }
+
+    /** The spot alerts watch: the one he last chose, else the one he last fished, else Keflavík. */
+    fun alertSpot(): Spot {
+        val spots = db.spots()
+        return db.selectedSpot?.let { id -> spots.firstOrNull { it.id == id } }
+            ?: db.trips().firstOrNull()?.let { t -> spots.firstOrNull { it.id == t.spotId } }
+            ?: spots.first()
     }
 }

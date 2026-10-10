@@ -36,6 +36,10 @@ data class Trip(
     val end: Long?,
     val catches: List<Catch>,
     val snapshot: Snapshot?,
+    /** A few words about the trip. */
+    val note: String = "",
+    /** Photo file names in the app's photos folder. */
+    val photos: List<String> = emptyList(),
 )
 
 /**
@@ -94,6 +98,22 @@ class Store(context: Context) {
         all.filter { !it.builtIn || it != defaults.firstOrNull { d -> d.id == it.id } }.forEach { a.put(spotJson(it)) }
         spotsFile.writeText(a.toString())
     }
+
+    /** Renames a spot (built-in ones too; the name you give wins over the built-in name). */
+    fun renameSpot(id: String, name: String) {
+        spots().firstOrNull { it.id == id }?.let { saveSpot(it.copy(name = name.trim().ifEmpty { it.name })) }
+    }
+
+    /** Deletes a saved spot. Built-in spots go back to how they came instead. */
+    fun deleteSpot(id: String) {
+        val a = JSONArray()
+        spots().filter { it.id != id && !(it.builtIn && it == defaults.firstOrNull { d -> d.id == it.id }) }.forEach { a.put(spotJson(it)) }
+        spotsFile.writeText(a.toString())
+        if (selectedSpot == id) selectedSpot = null
+    }
+
+    /** Folder for trip photos. */
+    val photoDir: File get() = File(dir, "photos").apply { mkdirs() }
 
     /** The saved spot within [meters] of a position, if any. */
     fun spotNear(lat: Double, lon: Double, meters: Double = 300.0): Spot? =
@@ -182,6 +202,8 @@ class Store(context: Context) {
             .put("id", t.id).put("spotId", t.spotId).put("spotName", t.spotName)
             .put("lat", t.lat).put("lon", t.lon).put("start", t.start).put("end", t.end ?: JSONObject.NULL)
             .put("catches", c)
+            .put("note", t.note)
+            .put("photos", JSONArray().also { a -> t.photos.forEach { a.put(it) } })
             .put("snapshot", t.snapshot?.let { s ->
                 JSONObject().put("score", s.score).put("wind", s.wind.orNull()).put("windDir", s.windDir.orNull())
                     .put("pressure", s.pressure.orNull()).put("pressure3h", s.pressure3h.orNull()).put("sst", s.sst.orNull())
@@ -210,6 +232,8 @@ class Store(context: Context) {
             snapshot = o.optJSONObject("snapshot")?.let { s ->
                 Snapshot(s.optInt("score"), s.d("wind"), s.d("windDir"), s.d("pressure"), s.d("pressure3h"), s.d("sst"), s.d("wave"), s.d("tideFlow"), s.d("sun"))
             },
+            note = o.optString("note", ""),
+            photos = o.optJSONArray("photos")?.let { a -> (0 until a.length()).map { a.getString(it) } } ?: emptyList(),
         )
     }
 

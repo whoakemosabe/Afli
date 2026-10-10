@@ -153,6 +153,7 @@ fun NowScreen(
     scroll: ScrollState,
     onSpot: (Spot) -> Unit,
     onFixSpot: () -> Unit,
+    onSpots: () -> Unit,
     onRetry: () -> Unit,
 ) {
     val spot = s.spot
@@ -162,7 +163,12 @@ fun NowScreen(
     val hours = s.hours
     val h = hours.getOrNull(sel)
 
-    LaunchedEffect(spot?.id) { Scrub.reset() }
+    // A new spot starts at now (but a jump waiting from a bite alert survives the first load).
+    val lastSpot = remember { mutableStateOf<String?>(null) }
+    LaunchedEffect(spot?.id) {
+        if (lastSpot.value != null && lastSpot.value != spot?.id) Scrub.reset()
+        lastSpot.value = spot?.id
+    }
     LaunchedEffect(s.now != null) {
         // "now2": the tour gained the time strip, so it shows once more for anyone who saw the old one.
         if (s.now != null) Tips.maybeTour(
@@ -239,7 +245,7 @@ fun NowScreen(
 
                 ConditionTiles(s, spot, hours, sel, now)
                 FishRow(s, spot)
-                SpotCard(spot, onFixSpot)
+                SpotCard(spot, onFixSpot, onSpots)
 
                 Text(
                     listOfNotNull(
@@ -1138,7 +1144,7 @@ private fun FishCard(sp: Species, v: Int, at: Long?, water: Double, modifier: Mo
 // ---------------------------------------------------------------- this spot
 
 @Composable
-private fun SpotCard(spot: Spot, onFixSpot: () -> Unit) {
+private fun SpotCard(spot: Spot, onFixSpot: () -> Unit, onSpots: () -> Unit) {
     GlassCard(Modifier.fillMaxWidth()) {
         SectionLabel(t("This spot", "Þessi staður"))
         Text(
@@ -1154,12 +1160,19 @@ private fun SpotCard(spot: Spot, onFixSpot: () -> Unit) {
             style = T.body,
         )
         Spacer(Modifier.height(10.dp))
-        GlassButton(
-            t("Fix spot", "Stilla stað"),
-            accent = C.brass,
-            explain = t("Point your phone at the water to set its direction, and say if it's a harbour or a lake.", "Beindu símanum þangað sem þú kastar til að stilla stefnuna og segðu hvort þetta sé höfn eða vatn."),
-            onClick = onFixSpot,
-        )
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            GlassButton(
+                t("Fix spot", "Stilla stað"),
+                accent = C.brass,
+                explain = t("Point your phone at the water to set its direction, and say if it's a harbour or a lake.", "Beindu símanum þangað sem þú kastar til að stilla stefnuna og segðu hvort þetta sé höfn eða vatn."),
+                onClick = onFixSpot,
+            )
+            GlassButton(
+                t("All spots", "Allir staðir"),
+                explain = t("Rename, delete or open your spots in a maps app.", "Endurnefndu, eyddu eða opnaðu staðina þína í kortaappi."),
+                onClick = onSpots,
+            )
+        }
     }
 }
 

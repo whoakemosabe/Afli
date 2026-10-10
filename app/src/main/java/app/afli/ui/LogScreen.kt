@@ -34,6 +34,9 @@ import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import app.afli.data.Trip
+import androidx.compose.ui.unit.sp
+import app.afli.model.Learn
+import app.afli.data.Repo
 import app.afli.data.UiState
 import app.afli.model.Fish
 import app.afli.model.Water
@@ -46,7 +49,7 @@ import kotlinx.coroutines.delay
  */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-fun LogScreen(s: UiState, top: Dp, scroll: ScrollState, onStart: () -> Unit, onCatch: (String) -> Unit, onUndo: () -> Unit, onEnd: () -> Unit, onDelete: (String) -> Unit) {
+fun LogScreen(s: UiState, top: Dp, scroll: ScrollState, onStart: () -> Unit, onCatch: (String) -> Unit, onUndo: () -> Unit, onEnd: () -> Unit, onOpenTrip: (String) -> Unit) {
     val view = LocalView.current
     LaunchedEffect(Unit) {
         Tips.maybeTour(
@@ -91,10 +94,14 @@ fun LogScreen(s: UiState, top: Dp, scroll: ScrollState, onStart: () -> Unit, onC
             }
         }
 
+        // Undo, for a few seconds after a trip is deleted.
+        UndoBar(s.lastDeleted)
+
         val past = s.trips.filter { it.end != null }
         if (past.isNotEmpty()) {
+            StatsCard(s)
             SectionLabel(t("Your trips", "Ferðirnar þínar"))
-            past.forEach { TripCard(it, onDelete) }
+            past.forEach { TripCard(it, onOpenTrip) }
         } else if (s.activeTrip == null) {
             GlassCard(Modifier.fillMaxWidth()) {
                 Text(t("No trips yet", "Engar ferðir enn"), style = T.heading)
@@ -168,29 +175,154 @@ private fun CatchButton(name: String, n: Int, explain: String, modifier: Modifie
 }
 
 @Composable
-private fun TripCard(trip: Trip, onDelete: (String) -> Unit) {
-    var confirm by remember(trip.id) { mutableStateOf(false) }
+private fun TripCard(trip: Trip, onOpen: (String) -> Unit) {
     val mins = (((trip.end ?: trip.start) - trip.start) / 60_000).toInt()
-    GlassCard(Modifier.fillMaxWidth(), explain = t("Tap a trip to show the delete button.", "Ýttu á ferð til að sjá eyða-hnappinn."), onClick = { confirm = !confirm }) {
+    GlassCard(Modifier.fillMaxWidth(), explain = t("Tap to see the trip, set fish sizes, add a note or photos.", "Ýttu til að sjá ferðina, skrá stærð fiska, bæta við athugasemd eða myndum."), onClick = { onOpen(trip.id) }) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
-                Text(spotLabel(trip.spotId, trip.spotName), style = T.heading)
-                Text("${dayWord(trip.start)} ${clock(trip.start)} · ${duration(mins)}", style = T.small)
+                Text(spotLabel(trip.spotId, trip.spotName), style = T.heading, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+                Text("${dayWord(trip.start)} ${clock(trip.start)} · ${duration(mins)}", style = T.small, maxLines = 1)
             }
             Text(if (trip.catches.isEmpty()) t("Blank", "Ekkert") else t("${trip.catches.size} fish", if (oneIs(trip.catches.size)) "${trip.catches.size} fiskur" else "${trip.catches.size} fiskar"), style = T.heading.copy(color = if (trip.catches.isEmpty()) C.mist else C.good))
+            Text("  ›", style = T.heading.copy(color = C.faint))
         }
         if (trip.catches.isNotEmpty()) {
             Text(
-                trip.catches.groupBy { it.species }.entries.joinToString(" · ") { (id, c) -> "${Fish.byId(id)?.name ?: id} ×${c.size}" },
+                trip.catches.groupBy { it.species }.entries.joinToString(" · ") { (id, c) ->
+                    val sizes = c.mapNotNull { it.sizeCm }
+                    "${Fish.byId(id)?.name ?: id} ×${c.size}" + if (sizes.isNotEmpty()) " (${t("biggest", "stærstur")} ${sizes.max()} cm)" else ""
+                },
                 style = T.small,
+                maxLines = 2,
+                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
                 modifier = Modifier.padding(top = 6.dp),
             )
         }
-        trip.snapshot?.let { Text(t("Score when you started: ", "Líkur í byrjun ferðar: ") + it.score, style = T.small.copy(color = C.faint)) }
-        if (confirm) {
-            Spacer(Modifier.height(10.dp))
-            GlassButton(t("Delete this trip", "Eyða þessari ferð"), accent = C.bad, style = T.small, onClick = { onDelete(trip.id) })
+        val extras = listOfNotNull(
+            trip.snapshot?.let { t("Score at start ", "Líkur í byrjun ") + it.score },
+            if (trip.photos.isNotEmpty()) t("${trip.photos.size} photos", "${trip.photos.size} myndir") else null,
+            if (trip.note.isNotBlank()) "“${trip.note.take(40)}${if (trip.note.length > 40) "…" else ""}”" else null,
+        )
+        if (extras.isNotEmpty()) Text(extras.joinToString(" · "), style = T.small.copy(color = C.faint), maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+    }
+}
+
+/** "Trip deleted · Undo", for six seconds after a delete. */
+@Composable
+private fun UndoBar(deleted: Trip?) {
+    val view = LocalView.current
+    LaunchedEffect(deleted?.id) {
+        if (deleted != null) {
+            delay(6_000)
+            Repo.forgetDeleted()
         }
+    }
+    androidx.compose.animation.AnimatedVisibility(
+        deleted != null,
+        enter = androidx.compose.animation.fadeIn() + androidx.compose.animation.expandVertically(),
+        exit = androidx.compose.animation.fadeOut() + androidx.compose.animation.shrinkVertically(),
+    ) {
+        GlassCard(Modifier.fillMaxWidth(), padding = androidx.compose.foundation.layout.PaddingValues(horizontal = 16.dp, vertical = 12.dp), onClick = {
+            Haptics.confirm(view)
+            Repo.undoDelete()
+        }) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(t("Trip deleted", "Ferð eytt"), style = T.body, modifier = Modifier.weight(1f))
+                Text(t("Undo", "Afturkalla"), style = T.heading.copy(color = C.brass))
+            }
+        }
+    }
+}
+
+/**
+ * What the log adds up to: trips, hours, fish and fish per hour; the best spot and top fish;
+ * and when he's done best by tide, light and the score he started with. Plus what Afli has
+ * learned at the current spot.
+ */
+@Composable
+private fun StatsCard(s: UiState) {
+    val done = s.trips.filter { it.end != null }
+    val hours = done.sumOf { ((it.end ?: it.start) - it.start) / 3_600_000.0 }
+    val fish = done.sumOf { it.catches.size }
+    val rate = Learn.rate(done)
+    GlassCard(Modifier.fillMaxWidth()) {
+        SectionLabel(t("Your fishing", "Veiðin þín"))
+        Row(Modifier.fillMaxWidth()) {
+            Big(t("Trips", "Ferðir"), "${done.size}", Modifier.weight(1f))
+            Big(t("Hours", "Tímar"), fmt(hours, if (hours < 10) 1 else 0), Modifier.weight(1f))
+            Big(t("Fish", "Fiskar"), "$fish", Modifier.weight(1f))
+            Big(t("Per hour", "Á tíma"), fmt(rate, 1), Modifier.weight(1f))
+        }
+        val bySpot = done.groupBy { it.spotId }.filter { it.value.size >= 2 }
+            .mapValues { Learn.rate(it.value) }.filter { !it.value.isNaN() }.maxByOrNull { it.value }
+        val topFish = done.flatMap { it.catches }.groupBy { it.species }.maxByOrNull { it.value.size }
+        val biggest = done.flatMap { it.catches }.filter { it.sizeCm != null }.maxByOrNull { it.sizeCm!! }
+        Spacer(Modifier.height(10.dp))
+        bySpot?.let { (id, r) ->
+            val name = done.first { it.spotId == id }.let { spotLabel(it.spotId, it.spotName) }
+            StatLine(t("Best spot", "Besti staður"), "$name · ${fmt(r, 1)} " + t("fish/h", "fiskar/klst."))
+        }
+        topFish?.let { (id, c) -> StatLine(t("Most caught", "Mest veitt"), "${Fish.byId(id)?.name ?: id} ×${c.size}") }
+        biggest?.let { StatLine(t("Biggest", "Stærstur"), "${Fish.byId(it.species)?.name ?: it.species} ${it.sizeCm} cm") }
+
+        // When it's gone best: fish per hour by condition at the start of each trip.
+        val withSnap = done.filter { it.snapshot != null }
+        if (withSnap.size >= 3) {
+            Spacer(Modifier.height(10.dp))
+            Text(t("WHEN YOU CATCH MOST", "HVENÆR ÞÚ VEIÐIR MEST"), style = T.label.copy(fontSize = 11.sp))
+            Spacer(Modifier.height(6.dp))
+            val groups = listOf(
+                t("Tide moving", "Sjór á hreyfingu") to withSnap.filter { (it.snapshot!!.tideFlow) >= 0.6 },
+                t("Slack tide", "Liggjandi") to withSnap.filter { (it.snapshot!!.tideFlow) <= 0.25 },
+                t("Dawn or dusk", "Ljósaskipti") to withSnap.filter { it.snapshot!!.sunElevation in -6.0..8.0 },
+                t("Daylight", "Dagsbirta") to withSnap.filter { it.snapshot!!.sunElevation > 8.0 },
+                t("Dark", "Myrkur") to withSnap.filter { it.snapshot!!.sunElevation < -6.0 },
+                t("Score 60+", "Líkur 60+") to withSnap.filter { it.snapshot!!.score >= 60 },
+                t("Score under 35", "Líkur undir 35") to withSnap.filter { it.snapshot!!.score < 35 },
+            ).map { (k, v) -> Triple(k, v.size, Learn.rate(v)) }.filter { it.second >= 1 && !it.third.isNaN() }
+            val top = groups.maxOfOrNull { it.third }?.coerceAtLeast(0.1) ?: 1.0
+            groups.forEach { (k, n, r) ->
+                Row(Modifier.fillMaxWidth().height(24.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Text(k, style = T.small.copy(fontSize = 12.sp), maxLines = 1, modifier = Modifier.width(132.dp))
+                    Bar((r / top).toFloat(), C.brass, Modifier.weight(1f).height(6.dp))
+                    Text("${fmt(r, 1)}/" + t("h", "klst.") + " · $n", style = T.small.copy(fontSize = 11.sp, color = C.faint), maxLines = 1, softWrap = false, modifier = Modifier.padding(start = 8.dp))
+                }
+            }
+            Text(t("Fish per hour, by how things were when each trip started (number of trips after the dot).", "Fiskar á klukkutíma eftir aðstæðum í upphafi hverrar ferðar (fjöldi ferða á eftir punktinum)."), style = T.small.copy(fontSize = 11.sp, color = C.faint), modifier = Modifier.padding(top = 4.dp))
+        }
+
+        // What Afli has picked up at the spot on screen.
+        s.spot?.let { sp ->
+            val boost = Learn.boost(sp, done)
+            if (boost.isNotEmpty()) {
+                val up = boost.filter { it.value >= 1.05 }.keys.mapNotNull { Fish.byId(it)?.name }
+                Spacer(Modifier.height(10.dp))
+                Text(
+                    if (up.isEmpty()) t("At ${sp.label}, your catches match what Afli expected.", "Við ${sp.label} passar aflinn þinn við það sem Afli bjóst við.")
+                    else t("Learned at ${sp.label}: you catch ${up.joinToString(", ")} here more than average, so they score a little higher.", "Lært við ${sp.label}: þú veiðir ${up.joinToString(", ")} oftar en gengur og gerist hér, svo þeir fá aðeins hærri líkur."),
+                    style = T.small.copy(color = C.foam),
+                )
+            } else {
+                Spacer(Modifier.height(10.dp))
+                Text(t("After 3 fish at a spot, Afli starts nudging the fish there toward what you actually catch.", "Eftir 3 fiska á stað fer Afli að laga fiskana þar að því sem þú veiðir í raun."), style = T.small.copy(color = C.faint))
+            }
+        }
+    }
+}
+
+@Composable
+private fun Big(label: String, value: String, modifier: Modifier) {
+    Column(modifier) {
+        Text(value, style = T.title.copy(fontSize = 22.sp), maxLines = 1, softWrap = false)
+        Text(label, style = T.small.copy(fontSize = 11.sp, color = C.faint), maxLines = 1)
+    }
+}
+
+@Composable
+private fun StatLine(label: String, value: String) {
+    Row(Modifier.fillMaxWidth().padding(vertical = 2.dp)) {
+        Text(label.uppercase(app.afli.L.locale), style = T.label.copy(fontSize = 10.sp), maxLines = 1, modifier = Modifier.width(110.dp).padding(top = 2.dp))
+        Text(value, style = T.small.copy(color = C.foam), maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
     }
 }
 

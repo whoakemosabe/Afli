@@ -98,7 +98,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
 
-private enum class Sheet { SETTINGS, FIX_SPOT }
+private enum class Sheet { SETTINGS, FIX_SPOT, TRIP, SPOTS }
 
 private val tabs: List<String>
     get() = listOf(t("Now", "Núna"), t("Forecast", "Spá"), t("Log", "Dagbók"), t("Guide", "Leiðarvísir"))
@@ -112,6 +112,7 @@ fun AfliApp() {
     var onboarded by remember { mutableStateOf(Repo.store().onboarded) }
     var tab by rememberSaveable { mutableIntStateOf(0) }
     var sheet by remember { mutableStateOf<Sheet?>(null) }
+    var openTrip by remember { mutableStateOf<String?>(null) }
     // One scroll position per tab, so switching tabs and back keeps your place.
     val scrolls = List(4) { rememberScrollState() }
     val scope = rememberCoroutineScope()
@@ -119,6 +120,8 @@ fun AfliApp() {
     val openUpdates by UpdateWatch.openUpdates.collectAsState()
 
     LaunchedEffect(onboarded) { if (onboarded) Repo.refresh(context) }
+    // A bite alert (or Forecast's See in Now) asks for an hour: show Now.
+    LaunchedEffect(Scrub.jump) { if (Scrub.jump != null) tab = 0 }
     LaunchedEffect(openUpdates) {
         if (openUpdates) {
             sheet = Sheet.SETTINGS
@@ -177,6 +180,7 @@ fun AfliApp() {
                                 s, contentTop, scrolls[0],
                                 onSpot = { Repo.choose(context, it) },
                                 onFixSpot = { sheet = Sheet.FIX_SPOT },
+                                onSpots = { sheet = Sheet.SPOTS },
                                 onRetry = {
                                     Repo.refresh(context)
                                     scope.launch { UpdateWatch.check(context, background = false, force = true) }
@@ -193,7 +197,10 @@ fun AfliApp() {
                                 onCatch = { Repo.addCatch(it) },
                                 onUndo = { Repo.undoCatch() },
                                 onEnd = { Repo.endTrip() },
-                                onDelete = { Repo.deleteTrip(it) },
+                                onOpenTrip = {
+                                    openTrip = it
+                                    sheet = Sheet.TRIP
+                                },
                             )
                             else -> GuideScreen(contentTop, scrolls[3])
                         }
@@ -268,12 +275,18 @@ fun AfliApp() {
 
             SheetHost(sheet != null, onClose = { sheet = null }) {
                 when (sheet) {
-                    Sheet.SETTINGS -> SettingsContent(onReplayIntro = {
+                    Sheet.SETTINGS -> SettingsContent(onManageSpots = { sheet = Sheet.SPOTS }, onReplayIntro = {
                         sheet = null
                         Repo.store().onboarded = false
                         onboarded = false
                     })
                     Sheet.FIX_SPOT -> s.spot?.let { SpotFixContent(it) { sheet = null } }
+                    Sheet.TRIP -> (s.trips.firstOrNull { it.id == openTrip } ?: s.activeTrip?.takeIf { it.id == openTrip })?.let { TripContent(it) { sheet = null } }
+                    Sheet.SPOTS -> SpotsContent(s) {
+                        sheet = null
+                        tab = 0
+                        Repo.choose(context, it)
+                    }
                     null -> {}
                 }
             }

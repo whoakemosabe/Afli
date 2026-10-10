@@ -21,6 +21,7 @@ object Prefs {
     var fahrenheit by mutableStateOf(false)
     var haptics by mutableStateOf(true)
     var animatedSea by mutableStateOf(true)
+    var alerts by mutableStateOf(false)
 
     private fun sp(context: Context) = context.getSharedPreferences("afli", Context.MODE_PRIVATE)
 
@@ -30,6 +31,7 @@ object Prefs {
         fahrenheit = p.getBoolean("fahrenheit", false)
         haptics = p.getBoolean("haptics", true)
         animatedSea = p.getBoolean("animatedSea", true)
+        alerts = p.getBoolean("alerts", false)
     }
 
     fun save(context: Context) {
@@ -38,6 +40,7 @@ object Prefs {
             .putBoolean("fahrenheit", fahrenheit)
             .putBoolean("haptics", haptics)
             .putBoolean("animatedSea", animatedSea)
+            .putBoolean("alerts", alerts)
             .apply()
     }
 

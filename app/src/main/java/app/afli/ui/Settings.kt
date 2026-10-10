@@ -63,11 +63,12 @@ private sealed class UpdateUi {
 
 /** Settings: updates (check, download, install), help, and data credits. */
 @Composable
-fun SettingsContent(onReplayIntro: () -> Unit) {
+fun SettingsContent(onManageSpots: () -> Unit, onReplayIntro: () -> Unit) {
     val context = LocalContext.current
     Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
         Text(t("Settings", "Stillingar"), style = T.title)
         LanguageCard()
+        AlertsCard()
         UnitsCard()
         FeelCard()
         UpdateSection()
@@ -83,7 +84,7 @@ fun SettingsContent(onReplayIntro: () -> Unit) {
                 GlassButton(t("Replay intro", "Sýna kynningu"), style = T.small, onClick = onReplayIntro)
             }
         }
-        YourDataCard()
+        YourDataCard(onManageSpots)
         GlassCard(Modifier.fillMaxWidth()) {
             SectionLabel(t("Data", "Gögn"))
             Text(
@@ -119,6 +120,35 @@ private fun <V> ChoiceRow(label: String, options: List<Pair<V, String>>, selecte
                     Haptics.confirm(view)
                 }
             })
+        }
+    }
+}
+
+/** Bite alerts on or off, and which spot they watch. */
+@Composable
+private fun AlertsCard() {
+    val context = LocalContext.current
+    val view = LocalView.current
+    val ask = androidx.activity.compose.rememberLauncherForActivityResult(androidx.activity.result.contract.ActivityResultContracts.RequestPermission()) { }
+    GlassCard(Modifier.fillMaxWidth()) {
+        SectionLabel(t("Bite alerts", "Tökuviðvaranir"))
+        Text(
+            t(
+                "A notification when a great time to fish (score 60+, not Stay home) is coming in the next 12 hours at your spot. Checked every few hours; never at night.",
+                "Tilkynning þegar frábær veiðitími (líkur 60+, ekki Vertu heima) er fram undan næstu 12 tíma á staðnum þínum. Athugað á nokkurra tíma fresti; aldrei á nóttunni.",
+            ),
+            style = T.small,
+        )
+        Spacer(Modifier.height(10.dp))
+        ChoiceRow(t("Alerts", "Viðvaranir"), listOf(true to t("On", "Kveikt"), false to t("Off", "Slökkt")), Prefs.alerts) {
+            Prefs.alerts = it
+            Prefs.save(context)
+            app.afli.update.BiteAlerts.sync(context)
+            if (it && android.os.Build.VERSION.SDK_INT >= 33) runCatching { ask.launch(android.Manifest.permission.POST_NOTIFICATIONS) }
+        }
+        if (Prefs.alerts) {
+            Spacer(Modifier.height(6.dp))
+            Text(t("Watching: ", "Fylgist með: ") + Repo.alertSpot().label, style = T.small.copy(color = C.foam))
         }
     }
 }
@@ -163,7 +193,7 @@ private fun FeelCard() {
 
 /** Clearing trips and saved spots, each behind a second tap. */
 @Composable
-private fun YourDataCard() {
+private fun YourDataCard(onManageSpots: () -> Unit) {
     val context = LocalContext.current
     val view = LocalView.current
     var confirm by remember { mutableStateOf<String?>(null) }
@@ -171,6 +201,8 @@ private fun YourDataCard() {
         SectionLabel(t("Your data", "Gögnin þín"))
         Text(t("Trips and spots are kept only on this phone.", "Ferðir og staðir eru bara geymd í þessum síma."), style = T.small)
         Spacer(Modifier.height(10.dp))
+        GlassButton(t("Manage spots", "Sýsla með staði"), style = T.small, onClick = onManageSpots)
+        Spacer(Modifier.height(8.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             GlassButton(
                 if (confirm == "spots") t("Tap again to forget", "Ýttu aftur til að eyða þeim") else t("Forget saved spots", "Eyða vistuðum stöðum"),

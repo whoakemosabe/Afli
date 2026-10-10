@@ -97,10 +97,10 @@ data class TideTurn(val t: Long, val high: Boolean, val level: Double)
  */
 object Model {
 
-    fun scoreAll(hours: List<Hour>, spot: Spot, lakeWaterTemp: Double = Double.NaN): List<HourScore> {
+    fun scoreAll(hours: List<Hour>, spot: Spot, lakeWaterTemp: Double = Double.NaN, boost: Map<String, Double> = emptyMap()): List<HourScore> {
         if (hours.isEmpty()) return emptyList()
         val flows = tideFlows(hours)
-        return hours.indices.map { i -> score(hours, i, spot, flows[i], lakeWaterTemp) }
+        return hours.indices.map { i -> score(hours, i, spot, flows[i], lakeWaterTemp, boost) }
     }
 
     /** 0..1 tide flow per hour: |dh/dt| relative to the fastest flow within ±13 h. */
@@ -121,7 +121,7 @@ object Model {
         }
     }
 
-    fun score(hours: List<Hour>, i: Int, spot: Spot, tideFlow: Double?, lakeWaterTemp: Double = Double.NaN): HourScore {
+    fun score(hours: List<Hour>, i: Int, spot: Spot, tideFlow: Double?, lakeWaterTemp: Double = Double.NaN, boost: Map<String, Double> = emptyMap()): HourScore {
         val h = hours[i]
         val sun = Astro.sunElevation(h.t, spot.lat, spot.lon)
         val reasons = mutableListOf<Reason>()
@@ -225,6 +225,8 @@ object Model {
             var p = s.temperatureFit(waterTemp) * s.reach * if (inSeason) 1.0 else 0.0
             if (sun < -6.0) p *= (1 + s.nightBonus)
             if (coldSnap && s.id == "thorskur") p *= 0.85
+            // What he's actually caught here (see Learn): a gentle nudge, never a takeover.
+            p *= boost[s.id] ?: 1.0
             s to (100 * p * activity).roundToInt().coerceIn(0, 100)
         }.sortedByDescending { it.second }
         val top = ranked.firstOrNull()
@@ -242,6 +244,14 @@ object Model {
             }
         }
 
+        top?.first?.let { f ->
+            val b = boost[f.id] ?: 1.0
+            if (b >= 1.08) reasons += Reason(
+                Tx("Your catches", "Þinn afli"),
+                Tx("You've caught ${f.en.lowercase()} here more than most fish, so Afli rates it a little higher at this spot.", "Þú hefur veitt ${f.icelandic.lowercase()} oftar en flesta aðra fiska hér, svo Afli metur hann aðeins hærra á þessum stað."),
+                true, b,
+            )
+        }
         val (safety, why) = safety(h, spot)
         val bite = when {
             score >= 60 -> Bite.GREAT
