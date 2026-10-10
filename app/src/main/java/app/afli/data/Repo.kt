@@ -38,6 +38,8 @@ data class UiState(
     val sea: SeaReading? = null,
     /** The Coast Guard harbour whose tide table is used, or null when tides come from the sea model. */
     val tidePort: String? = null,
+    /** True when the numbers shown are the last saved forecast because the network failed. */
+    val offline: Boolean = false,
     val scores: List<HourScore> = emptyList(),
     val nowIndex: Int = 0,
     val window: Window? = null,
@@ -108,14 +110,21 @@ object Repo {
     }
 
     private suspend fun load(spot: Spot) {
+        // Show the last saved forecast for this spot straight away, while the new one loads.
+        val cached = db.cachedForecast(spot.id)?.takeIf { System.currentTimeMillis() - it.fetchedAt < 3 * 86_400_000L }
+        if (cached != null && state.value.scores.isEmpty()) {
+            val scored = withContext(Dispatchers.Default) { scoreFor(cached, spot, null, null) }
+            state.update { it.copy(forecast = cached, scores = scored.scores, nowIndex = scored.nowIndex, hours = scored.hours, tidePort = scored.tidePort, window = Model.nextWindow(scored.scores, System.currentTimeMillis())) }
+        }
         try {
             val fc = Feeds.forecast(spot.lat, spot.lon)
+            db.saveForecast(spot.id, fc)
             val live = runCatching { Feeds.live(spot.lat, spot.lon) }.getOrNull()
             val sea = runCatching { Feeds.seaTemp(spot.lat, spot.lon) }.getOrNull()
             val scored = withContext(Dispatchers.Default) { scoreFor(fc, spot, live, sea) }
             state.update {
                 it.copy(
-                    loading = false, forecast = fc, live = live, sea = sea, tidePort = scored.tidePort,
+                    loading = false, offline = false, forecast = fc, live = live, sea = sea, tidePort = scored.tidePort,
                     scores = scored.scores, nowIndex = scored.nowIndex, hours = scored.hours,
                     window = Model.nextWindow(scored.scores, System.currentTimeMillis()),
                 )
@@ -123,7 +132,19 @@ object Repo {
         } catch (e: kotlinx.coroutines.CancellationException) {
             throw e
         } catch (e: Exception) {
-            state.update { it.copy(loading = false, error = Tx("Couldn't load the forecast. Check your connection and pull down to try again.", "Náði ekki í spána. Athugaðu nettenginguna og dragðu niður til að reyna aftur.")) }
+            if (cached != null) {
+                // No signal: keep the saved forecast, rescored for the current hour, and say so.
+                val scored = withContext(Dispatchers.Default) { scoreFor(cached, spot, null, null) }
+                state.update {
+                    it.copy(
+                        loading = false, offline = true, error = null, forecast = cached, live = null, sea = null, tidePort = scored.tidePort,
+                        scores = scored.scores, nowIndex = scored.nowIndex, hours = scored.hours,
+                        window = Model.nextWindow(scored.scores, System.currentTimeMillis()),
+                    )
+                }
+            } else {
+                state.update { it.copy(loading = false, error = Tx("Couldn't load the forecast. Check your connection and pull down to try again.", "Náði ekki í spána. Athugaðu nettenginguna og dragðu niður til að reyna aftur.")) }
+            }
         }
     }
 
@@ -163,7 +184,9 @@ object Repo {
         var tidePort: String? = null
         if (spot.water == Water.SEA) {
             TideTable.apply(appContext, hours, spot.lat, spot.lon)?.let { (h, port) ->
-                hours = h
+                // The tables assume average air pressure. Per the Coast Guard, a 10 hPa fall lifts
+                // the sea about 0.1 m (and a rise lowers it), so the table level is shifted by that.
+                hours = h.map { hr -> if (hr.pressure.isNaN() || hr.seaLevel.isNaN()) hr else hr.copy(seaLevel = hr.seaLevel + TideTable.pressureSetup(hr.pressure)) }
                 tidePort = port.name
             }
         }

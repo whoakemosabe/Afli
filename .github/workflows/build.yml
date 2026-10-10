@@ -15,7 +15,8 @@ concurrency:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    # Pinned so a runner image change can't surprise a release.
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v5
 
@@ -99,12 +100,14 @@ jobs:
           retention-days: 7
 
       - name: Publish release
-        # Only main publishes; other branches are build checks.
+        # Only main publishes; other branches are build checks. Uses the gh CLI on the runner,
+        # so there's no third-party action (or its Node version) in the release path.
         if: github.ref == 'refs/heads/main'
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: v1.0.${{ github.run_number }}
-          name: Afli 1.0.${{ github.run_number }}
-          body_path: notes.md
-          files: afli.apk
-          make_latest: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "v1.0.${{ github.run_number }}" afli.apk \
+            --title "Afli 1.0.${{ github.run_number }}" \
+            --notes-file notes.md \
+            --target "${GITHUB_SHA}" \
+            --latest

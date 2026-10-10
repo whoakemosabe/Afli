@@ -78,6 +78,12 @@ object TideTable {
         return sqrt(x * x + y * y)
     }
 
+    /** Average sea-level air pressure in south-west Iceland (hPa), which the tables assume. */
+    const val MEAN_PRESSURE = 1006.0
+
+    /** Metres the sea stands above the table for air pressure [hPa]: 1 cm per hPa below average. */
+    fun pressureSetup(hPa: Double): Double = (MEAN_PRESSURE - hPa) * 0.01
+
     /** The listed harbour nearest to a spot, if it's close enough to use. */
     fun portNear(lat: Double, lon: Double): Port? =
         ports.minByOrNull { km(lat, lon, it.lat, it.lon) }?.takeIf { km(lat, lon, it.lat, it.lon) <= REACH_KM }

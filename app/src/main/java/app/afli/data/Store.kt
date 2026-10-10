@@ -1,6 +1,7 @@
 package app.afli.data
 
 import android.content.Context
+import app.afli.model.Hour
 import app.afli.model.Spot
 import app.afli.model.Water
 import org.json.JSONArray
@@ -130,6 +131,32 @@ class Store(context: Context) {
         all.sortedBy { it.start }.forEach { a.put(tripJson(it)) }
         tripsFile.writeText(a.toString())
     }
+
+    // ---- the last forecast for each spot, so Afli opens instantly and works without signal ----
+
+    private fun forecastFile(spotId: String) = File(dir, "forecast-${spotId.replace(Regex("[^A-Za-z0-9_-]"), "_")}.json")
+
+    fun saveForecast(spotId: String, fc: Forecast) {
+        val rows = JSONArray()
+        fc.hours.forEach { h ->
+            rows.put(JSONArray().put(h.t).put(h.airTemp.orNull()).put(h.precip.orNull()).put(h.cloud.orNull()).put(h.pressure.orNull())
+                .put(h.wind.orNull()).put(h.windDir.orNull()).put(h.gust.orNull()).put(h.wave.orNull()).put(h.sst.orNull()).put(h.seaLevel.orNull()))
+        }
+        runCatching {
+            forecastFile(spotId).writeText(JSONObject().put("model", fc.weatherModel).put("fetchedAt", fc.fetchedAt).put("hours", rows).toString())
+        }
+    }
+
+    fun cachedForecast(spotId: String): Forecast? = runCatching {
+        val o = JSONObject(forecastFile(spotId).readText())
+        val a = o.getJSONArray("hours")
+        fun JSONArray.dd(i: Int) = if (isNull(i)) Double.NaN else optDouble(i, Double.NaN)
+        val hours = (0 until a.length()).map { i ->
+            val r = a.getJSONArray(i)
+            Hour(r.getLong(0), r.dd(1), r.dd(2), r.dd(3), r.dd(4), r.dd(5), r.dd(6), r.dd(7), r.dd(8), r.dd(9), r.dd(10))
+        }
+        Forecast(hours, o.optString("model"), o.getLong("fetchedAt"))
+    }.getOrNull()
 
     /** Deletes every trip. */
     fun clearTrips() {

@@ -226,6 +226,7 @@ fun AfliApp() {
                     Text(
                         when {
                             s.loading -> t("Updating…", "Sæki…")
+                            s.offline && s.forecast != null -> t("Offline · saved ", "Án nets · vistað ") + dayWord(s.forecast!!.fetchedAt).lowercase(app.afli.L.locale) + " " + clock(s.forecast!!.fetchedAt)
                             s.forecast != null -> t("Updated ", "Uppfært ") + clock(s.forecast!!.fetchedAt)
                             else -> " "
                         },

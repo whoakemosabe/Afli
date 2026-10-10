@@ -175,7 +175,7 @@ private fun BestDayCard(days: List<Day>, onOpen: (Day) -> Unit) {
     val b = best.best!!
     GlassCard(
         Modifier.fillMaxWidth(),
-        explain = t("The day with the highest bite score this week, leaving out Stay home hours.", "Dagurinn með hæstu tökulíkurnar í vikunni, án tíma þar sem á að vera heima."),
+        explain = t("The day with the highest bite score this week, leaving out Stay home hours.", "Dagurinn með hæstu tökulíkurnar í vikunni. Tímar merktir Vertu heima eru ekki taldir með."),
         onClick = { onOpen(best) },
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -213,7 +213,7 @@ private fun WeekStrip(days: List<Day>, onPick: (Day) -> Unit) {
             val m = if (backdrop != null) Modifier.weight(1f).glassControl(backdrop, shape, press = press.amount, layer = press.squishLayer(0.08f))
             else Modifier.weight(1f).squish(press, 0.08f)
             Column(
-                m.pressable(press, t("Jump to ", "Fara á ") + longDay(d.date), scaleBy = 0f, haptic = false) { onPick(d) }
+                m.pressable(press, t("Jump to ", "Skoða dag: ") + longDay(d.date), scaleBy = 0f, haptic = false) { onPick(d) }
                     .padding(vertical = 8.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
@@ -257,7 +257,7 @@ private fun DayCard(d: Day, spot: Spot, nowLimit: Long?, onOpenNow: (Long) -> Un
     val sure = when {
         d.index <= 1 -> null
         d.index <= 3 -> t("Less sure", "Óvissara")
-        else -> t("Rough guide", "Gróf leiðbeining")
+        else -> t("Rough guide", "Gróft mat")
     }
     GlassCard(modifier.fillMaxWidth()) {
         // Day, how sure, safety.
@@ -279,7 +279,7 @@ private fun DayCard(d: Day, spot: Spot, nowLimit: Long?, onOpenNow: (Long) -> Un
             if (sea) add(t("Tides", "Sjávarföll") to tideSummary(d.turns))
             add(t("Sun", "Sól") to sunSummary(d))
             add(t("Wind", "Vindur") to rangeOf(d.hours.map { it.wind }) { windNum(it) } + " " + Prefs.wind.label + gustNote(d.hours))
-            add(t("Air", "Loft") to rangeOf(d.hours.map { it.airTemp }) { tempNum(it) } + " " + tempUnit)
+            add(t("Air", "Lofthiti") to rangeOf(d.hours.map { it.airTemp }) { tempNum(it) } + " " + tempUnit)
             if (sea) add(t("Waves", "Öldur") to (d.hours.map { if (spot.sheltered) it.wave * 0.3 else it.wave }.filter { !it.isNaN() }.maxOrNull()?.let { t("up to ", "allt að ") + fmt(it, 1) + " m" } ?: "–"))
         }
         facts.chunked(2).forEach { pair ->
@@ -305,7 +305,7 @@ private fun DayCard(d: Day, spot: Spot, nowLimit: Long?, onOpenNow: (Long) -> Un
             val h = i?.let { d.scores.getOrNull(it) }
             val hr = i?.let { d.hours.getOrNull(it) }
             if (h == null) {
-                Text(t("Drag or tap along the bars to see each hour.", "Dragðu eða ýttu á súlurnar til að sjá hvern tíma."), style = T.small.copy(color = C.faint), modifier = Modifier.padding(top = 10.dp))
+                Text(t("Drag or tap along the bars to see each hour.", "Dragðu fingurinn eftir súlunum eða ýttu á þær til að sjá hvern klukkutíma."), style = T.small.copy(color = C.faint), modifier = Modifier.padding(top = 10.dp))
             } else {
                 Column(Modifier.padding(top = 8.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
@@ -358,9 +358,9 @@ private fun SafetyTag(worst: Safety, any: Boolean) {
         Spacer(Modifier.width(6.dp))
         Text(
             when (worst) {
-                Safety.SAFE -> t("Safe all day", "Öruggt í allan dag")
+                Safety.SAFE -> t("Safe all day", "Öruggt allan daginn")
                 Safety.CAREFUL -> t("Careful at times", "Varúð á köflum")
-                Safety.STAY_HOME -> if (any) t("Stay home at times", "Vertu heima á köflum") else Safety.STAY_HOME.label
+                Safety.STAY_HOME -> if (any) t("Stay home at times", "Vertu heima hluta dags") else Safety.STAY_HOME.label
             },
             style = T.small.copy(fontSize = 12.sp, color = col),
             maxLines = 1,

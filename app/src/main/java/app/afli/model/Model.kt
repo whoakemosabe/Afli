@@ -172,10 +172,10 @@ object Model {
             PressureTrend.UNKNOWN -> 0.95
             PressureTrend.STEADY -> 0.95
             PressureTrend.FALLING -> 1.0.also { reasons += Reason(Tx("Pressure falling", "Þrýstingur fellur"), Tx("A slow drop in air pressure often gets fish feeding.", "Hægt fallandi loftþrýstingur fær fiskinn oft til að taka."), true, 1.06) }
-            PressureTrend.FALLING_FAST -> 0.93.also { reasons += Reason(Tx("Falling fast", "Fellur hratt"), Tx("Pressure is dropping quickly. Fish may feed hard for a while, then go quiet as the weather arrives.", "Loftþrýstingur fellur hratt. Fiskurinn getur tekið vel um stund en róast svo þegar veðrið skellur á."), false, it) }
-            PressureTrend.STORM -> 0.8.also { reasons += Reason(Tx("Storm coming", "Óveður í aðsigi"), Tx("Pressure is plunging, so a storm is close. Fishing usually shuts down.", "Loftþrýstingur hrapar og óveður er nálægt. Taka dettur yfirleitt niður."), false, it) }
+            PressureTrend.FALLING_FAST -> 0.93.also { reasons += Reason(Tx("Pressure falling fast", "Þrýstingur fellur hratt"), Tx("Pressure is dropping quickly. Fish may feed hard for a while, then go quiet as the weather arrives.", "Loftþrýstingur fellur hratt. Fiskurinn getur tekið vel um stund en róast svo þegar veðrið skellur á."), false, it) }
+            PressureTrend.STORM -> 0.8.also { reasons += Reason(Tx("Storm coming", "Óveður í aðsigi"), Tx("Pressure is plunging, so a storm is close. Fishing usually shuts down.", "Loftþrýstingur hrapar og óveður er nálægt. Fiskurinn hættir yfirleitt að taka."), false, it) }
             PressureTrend.RISING -> 0.9.also { reasons += Reason(Tx("Pressure rising", "Þrýstingur hækkar"), Tx("Rising pressure after a front often means a slower bite.", "Hækkandi þrýstingur eftir skil þýðir oft dræmari töku."), false, it) }
-            PressureTrend.RISING_FAST -> 0.82.also { reasons += Reason(Tx("Rising fast", "Hækkar hratt"), Tx("Pressure is climbing fast behind a front. Bites are usually slow.", "Þrýstingur hækkar hratt á eftir skilum. Taka er yfirleitt dræm."), false, it) }
+            PressureTrend.RISING_FAST -> 0.82.also { reasons += Reason(Tx("Pressure rising fast", "Þrýstingur hækkar hratt"), Tx("Pressure is climbing fast behind a front. Bites are usually slow.", "Þrýstingur hækkar hratt í kjölfar skila. Fiskurinn tekur yfirleitt illa."), false, it) }
         }
 
         // Wind: some chop helps, too much makes it hard to fish.

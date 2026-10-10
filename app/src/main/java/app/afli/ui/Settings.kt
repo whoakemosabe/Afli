@@ -152,7 +152,7 @@ private fun FeelCard() {
             Prefs.save(context)
         }
         Spacer(Modifier.height(12.dp))
-        ChoiceRow(t("Moving sea background", "Hreyfanlegur sjór í bakgrunni"), listOf(true to t("On", "Kveikt"), false to t("Still", "Kyrr")), Prefs.animatedSea) {
+        ChoiceRow(t("Moving sea background", "Sjór í bakgrunni"), listOf(true to t("Moving", "Á hreyfingu"), false to t("Still", "Kyrr")), Prefs.animatedSea) {
             Prefs.animatedSea = it
             Prefs.save(context)
         }
@@ -173,7 +173,7 @@ private fun YourDataCard() {
         Spacer(Modifier.height(10.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             GlassButton(
-                if (confirm == "spots") t("Tap again to forget", "Ýttu aftur til að gleyma") else t("Forget saved spots", "Gleyma vistuðum stöðum"),
+                if (confirm == "spots") t("Tap again to forget", "Ýttu aftur til að eyða þeim") else t("Forget saved spots", "Eyða vistuðum stöðum"),
                 style = T.small,
                 accent = if (confirm == "spots") C.bad else C.foam,
                 onClick = {
@@ -181,7 +181,7 @@ private fun YourDataCard() {
                         Repo.forgetSpots(context)
                         Haptics.confirm(view)
                         confirm = null
-                        Tips.explain(t("Saved spots and spot fixes are gone. The built-in harbours and lakes stay.", "Vistaðir staðir og stillingar þeirra eru horfnar. Innbyggðu hafnirnar og vötnin eru enn."))
+                        Tips.explain(t("Saved spots and spot fixes are gone. The built-in harbours and lakes stay.", "Vistaðir staðir og stillingar þeirra eru horfin. Innbyggðu hafnirnar og vötnin eru enn á sínum stað."))
                     } else confirm = "spots"
                 },
             )

@@ -98,7 +98,7 @@ fun LogScreen(s: UiState, top: Dp, scroll: ScrollState, onStart: () -> Unit, onC
         } else if (s.activeTrip == null) {
             GlassCard(Modifier.fillMaxWidth()) {
                 Text(t("No trips yet", "Engar ferðir enn"), style = T.heading)
-                Text(t("Go to the harbour and tap Start fishing. Each trip keeps the tide, wind and score it started in, so you can see what worked.", "Farðu niður á bryggju og ýttu á Byrja að veiða. Hver ferð geymir sjávarföll, vind og líkur í byrjun svo þú sjáir hvað virkaði."), style = T.small)
+                Text(t("Go to the harbour and tap Start fishing. Each trip keeps the tide, wind and score it started in, so you can see what worked.", "Farðu niður á bryggju og ýttu á Byrja að veiða. Hver ferð geymir sjávarföll, vind og tökulíkur eins og þau voru í upphafi, svo þú sjáir hvað virkaði."), style = T.small)
             }
         }
         BottomBarSpace()

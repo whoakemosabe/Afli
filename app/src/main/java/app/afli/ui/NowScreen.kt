@@ -402,7 +402,7 @@ private fun HeroCard(s: UiState, spot: Spot, now: HourScore, sel: Int, hours: Li
                     }
                     .padding(horizontal = 12.dp, vertical = 5.dp),
             ) {
-                Text(t("Back to now", "Aftur í núna"), style = T.small.copy(fontSize = 12.sp, color = C.brass), maxLines = 1, softWrap = false)
+                Text(t("Back to now", "Sýna núna"), style = T.small.copy(fontSize = 12.sp, color = C.brass), maxLines = 1, softWrap = false)
             }
         }
         // A new spot or a new "now" starts the strip fresh at the current hour.
@@ -463,7 +463,7 @@ fun ScoreRing(score: Int, bite: Bite, modifier: Modifier = Modifier) {
         modifier.explains(
             t(
                 "Bite score from 0 to 100. Over 60 is great, 35–60 is OK, under 35 is slow. It's a guide, not a promise.",
-                "Tökulíkur frá 0 upp í 100. Yfir 60 er frábært, 35–60 ágætt og undir 35 rólegt. Þetta er leiðbeining, ekki loforð.",
+                "Tökulíkur frá 0 upp í 100. Yfir 60 er frábært, 35–60 ágætt og undir 35 rólegt. Þetta er vísbending, ekki loforð.",
             ),
         ),
         contentAlignment = Alignment.Center,
@@ -799,7 +799,8 @@ private fun TileCard(tile: Tile, open: Boolean, modifier: Modifier, onClick: () 
 
 /** "now", or the day and time being shown on the time strip. */
 private fun whenLabel(s: UiState, sel: Int, ms: Long): String =
-    if (sel == s.nowIndex) t("now", "núna") else "${dayWord(ms).lowercase(app.afli.L.locale)} ${clock(ms)}"
+    if (sel == s.nowIndex) t("now", "núna")
+    else t("${dayWord(ms).lowercase(app.afli.L.locale)} ${clock(ms)}", "kl. ${clock(ms)} ${dayWord(ms).lowercase(app.afli.L.locale)}")
 
 private fun buildTiles(s: UiState, spot: Spot, hours: List<Hour>, sel: Int, h: Hour, now: HourScore): List<Tile> {
     val sea = spot.water == Water.SEA
@@ -841,7 +842,7 @@ private fun buildTiles(s: UiState, spot: Spot, hours: List<Hour>, sel: Int, h: H
                 Text(
                     t(
                         "Live: ${l.station} (${fmt(l.distanceKm)} km) ${fmt(l.wind)} m/s, gusts ${fmt(l.gust)} m/s. The next 12 hours are corrected to match.",
-                        "Rauntími: ${l.station} (${fmt(l.distanceKm)} km) ${fmt(l.wind)} m/s, hviður ${fmt(l.gust)} m/s. Næstu 12 tímar eru leiðréttir miðað við mælinguna.",
+                        "Mælt núna: ${l.station} (${fmt(l.distanceKm)} km) ${fmt(l.wind)} m/s, hviður ${fmt(l.gust)} m/s. Næstu 12 tímar eru leiðréttir miðað við mælinguna.",
                     ),
                     style = T.small,
                 )
@@ -886,8 +887,16 @@ private fun buildTiles(s: UiState, spot: Spot, hours: List<Hour>, sel: Int, h: H
                     },
                     style = T.small,
                 )
+                s.tidePort?.let { _ ->
+                    val cm = app.afli.data.TideTable.pressureSetup(h.pressure) * 100
+                    if (!cm.isNaN() && kotlin.math.abs(cm) >= 5) Text(
+                        if (cm > 0) t("Low pressure is lifting the sea about ${fmt(cm)} cm above the table.", "Lágur loftþrýstingur lyftir sjónum um ${fmt(cm)} cm yfir töfluna.")
+                        else t("High pressure is pressing the sea about ${fmt(-cm)} cm below the table.", "Hár loftþrýstingur þrýstir sjónum um ${fmt(-cm)} cm undir töfluna."),
+                        style = T.small,
+                    )
+                }
                 Text(
-                    s.tidePort?.let { t("From the Coast Guard tide tables for $it, corrected from Reykjavík. Weather can shift the sea a little. Not for navigation.", "Úr sjávarfallatöflum Landhelgisgæslunnar fyrir $it, leiðrétt frá Reykjavík. Veður getur hnikað sjávarhæðinni. Ekki ætlað til siglinga.") }
+                    s.tidePort?.let { t("From the Coast Guard tide tables for $it, corrected from Reykjavík and for air pressure. Strong wind can still push the sea a little. Not for navigation.", "Höfn: $it. Úr sjávarfallatöflum Landhelgisgæslunnar, umreiknað frá Reykjavík og leiðrétt fyrir loftþrýstingi. Hvass vindur getur samt breytt sjávarhæðinni aðeins. Ekki ætlað til siglinga.") }
                         ?: t("A model estimate (no Coast Guard table for this spot). Not for navigation.", "Mat úr líkani (engin tafla Landhelgisgæslunnar fyrir þennan stað). Ekki ætlað til siglinga."),
                     style = T.small.copy(color = C.faint),
                 )
@@ -916,7 +925,7 @@ private fun buildTiles(s: UiState, spot: Spot, hours: List<Hour>, sel: Int, h: H
                 Spacer(Modifier.height(8.dp))
                 s.sea?.let { r ->
                     Text(
-                        t("Measured: ${fmt(r.temp, 1)} °C at ${r.station} (${fmt(r.distanceKm)} km), ${clock(r.time)}. The model is corrected to match.", "Mælt: ${fmt(r.temp, 1)} °C við ${r.station} (${fmt(r.distanceKm)} km) kl. ${clock(r.time)}. Líkanið er leiðrétt í samræmi við mælinguna."),
+                        t("Measured: ${fmt(r.temp, 1)} °C at ${r.station} (${fmt(r.distanceKm)} km), ${clock(r.time)}. The model is corrected to match.", "Mælt: ${fmt(r.temp, 1)} °C (mælistöð: ${r.station}, ${fmt(r.distanceKm)} km) kl. ${clock(r.time)}. Líkanið er leiðrétt í samræmi við mælinguna."),
                         style = T.small,
                     )
                     Spacer(Modifier.height(4.dp))
@@ -940,7 +949,7 @@ private fun buildTiles(s: UiState, spot: Spot, hours: List<Hour>, sel: Int, h: H
         if (d3.isNaN()) "–" else trend.label + " · " + (if (d3 >= 0) "+" else "−") + fmt(kotlin.math.abs(d3), 1) + t(" in 3 h", " á 3 klst."),
         t(
             "Air pressure at sea level and its change over the last 3 hours. Steady is under 0.8 hPa; a fall of 0.8–3.5 often gets fish feeding; faster falls mean weather is coming; a climb after a front usually means a slow bite.",
-            "Loftþrýstingur við sjávarmál og breytingin síðustu 3 tíma. Stöðugur er undir 0,8 hPa; fall upp á 0,8–3,5 fær fiskinn oft til að taka; hraðara fall boðar veður; hækkun eftir skil þýðir oftast dræma töku.",
+            "Loftþrýstingur við sjávarmál og breytingin á síðustu 3 tímum. Breyting undir 0,8 hPa telst stöðug; fall um 0,8–3,5 fær fiskinn oft til að taka; hraðara fall boðar vont veður; hækkun eftir skil þýðir oftast dræma töku.",
         ),
         mini = { m ->
             val (sl, mk) = slice(12, 12)
