@@ -68,6 +68,6 @@ fun spotLabel(id: String, name: String): String = when (id) {
     // Built-in names in both languages, unless he's renamed them.
     "keflavik" -> if (name == "Keflavík harbour") t("Keflavík harbour", "Keflavíkurhöfn") else name
     "njardvik" -> if (name == "Njarðvík harbour") t("Njarðvík harbour", "Njarðvíkurhöfn") else name
-    "here" -> if (name == "Here") t("Here", "Hér") else name
-    else -> name
+    // A new spot is called "Here" until the phone finds its place name.
+    else -> if (name == "Here") t("Here", "Hér") else name
 }

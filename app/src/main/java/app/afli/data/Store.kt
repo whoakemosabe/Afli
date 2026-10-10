@@ -113,6 +113,7 @@ class Store(context: Context) {
     }
 
     /** Spots he has saved or corrected, merged over the built-in defaults by id. */
+    @Synchronized
     fun spots(): List<Spot> {
         val saved = readArray(spotsFile)
         val mine = (0 until saved.length()).mapNotNull { runCatching { spotFrom(saved.getJSONObject(it)) }.getOrNull() }
@@ -120,6 +121,7 @@ class Store(context: Context) {
         return mine + defaults.filter { it.id !in ids }
     }
 
+    @Synchronized
     fun saveSpot(spot: Spot) {
         val all = spots().filter { it.id != spot.id } + spot
         val a = JSONArray()
@@ -128,11 +130,13 @@ class Store(context: Context) {
     }
 
     /** Renames a spot (built-in ones too; the name you give wins over the built-in name). */
+    @Synchronized
     fun renameSpot(id: String, name: String) {
         spots().firstOrNull { it.id == id }?.let { saveSpot(it.copy(name = name.trim().ifEmpty { it.name })) }
     }
 
     /** Deletes a saved spot. Built-in spots go back to how they came instead. */
+    @Synchronized
     fun deleteSpot(id: String) {
         val a = JSONArray()
         spots().filter { it.id != id && !(it.builtIn && it == defaults.firstOrNull { d -> d.id == it.id }) }.forEach { a.put(spotJson(it)) }
@@ -167,12 +171,14 @@ class Store(context: Context) {
 
     private val tripsFile get() = File(dir, "trips.json")
 
+    @Synchronized
     fun trips(): List<Trip> {
         val a = readArray(tripsFile)
         return (0 until a.length()).mapNotNull { runCatching { tripFrom(a.getJSONObject(it)) }.getOrNull() }
             .sortedByDescending { it.start }
     }
 
+    @Synchronized
     fun saveTrip(trip: Trip) {
         val all = trips().filter { it.id != trip.id } + trip
         val a = JSONArray()
@@ -207,17 +213,20 @@ class Store(context: Context) {
     }.getOrNull()
 
     /** Deletes every trip. */
+    @Synchronized
     fun clearTrips() {
         androidx.core.util.AtomicFile(tripsFile).delete()
         photoDir.listFiles()?.forEach { it.delete() }
     }
 
     /** Forgets the spots saved from trips; the built-in harbours and lakes stay. */
+    @Synchronized
     fun forgetSpots() {
         androidx.core.util.AtomicFile(spotsFile).delete()
         selectedSpot = null
     }
 
+    @Synchronized
     fun deleteTrip(id: String) {
         val a = JSONArray()
         trips().filter { it.id != id }.sortedBy { it.start }.forEach { a.put(tripJson(it)) }

@@ -416,7 +416,7 @@ private fun SummaryCard(trip: Trip, s: UiState, onShare: () -> Unit) {
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             if (trip.catches.isNotEmpty()) GlassButton(t("Share", "Deila"), accent = C.brass, style = T.small, onClick = onShare)
             // Ended by mistake? Put it back on.
-            if (s.activeTrip == null) GlassButton(t("Not done? Resume", "Ekki búinn? Halda áfram"), style = T.small, onClick = { Repo.resumeTrip() })
+            if (s.activeTrip == null && System.currentTimeMillis() - (trip.end ?: 0L) < 30 * 60_000L) GlassButton(t("Not done? Resume", "Ekki búinn? Halda áfram"), style = T.small, onClick = { Repo.resumeTrip() })
         }
     }
 }

@@ -231,17 +231,35 @@ object Repo {
         scope.launch {
             val fc = state.value.forecast ?: return@launch
             val scored = withContext(Dispatchers.Default) { scoreFor(fc, s, state.value.live, state.value.sea) }
-            state.update { it.copy(scores = scored.scores, nowIndex = scored.nowIndex, hours = scored.hours, tidePort = scored.tidePort, window = Model.nextWindow(scored.scores, System.currentTimeMillis())) }
+            state.update { if (it.spot?.id != s.id || it.forecast !== fc) it else it.copy(scores = scored.scores, nowIndex = scored.nowIndex, hours = scored.hours, tidePort = scored.tidePort, window = Model.nextWindow(scored.scores, System.currentTimeMillis())) }
         }
     }
 
     // ---- trips ----
 
+    private var starting = false
+
     fun startTrip(context: Context) {
-        val st = state.value
         // One trip at a time (a double tap mustn't start two).
+        if (state.value.activeTrip != null || starting) return
+        starting = true
+        scope.launch {
+            try {
+                // A position more than 5 minutes old may be from before he drove to the water.
+                val cached = state.value.gps
+                val fresh = if (cached == null || System.currentTimeMillis() - cached.time > 5 * 60_000L) {
+                    if (Locator.hasPermission(appContext)) runCatching { Locator.current(appContext) }.getOrNull() else null
+                } else null
+                startTripAt(context, fresh ?: cached)
+            } finally {
+                starting = false
+            }
+        }
+    }
+
+    private fun startTripAt(context: Context, gps: Location?) {
+        val st = state.value
         if (st.activeTrip != null) return
-        val gps = st.gps
         // Start where he actually is: if the spot on screen is far from his GPS position (he
         // was looking at another spot), the trip goes to a new spot here instead.
         var spot = st.spot
@@ -293,22 +311,27 @@ object Repo {
                 val name = runCatching { Locator.nameFor(appContext, gps.latitude, gps.longitude) }.getOrNull()
                 if (!name.isNullOrBlank() && name != "Here") {
                     db.renameSpot(newId, name)
-                    state.value.activeTrip?.takeIf { it.spotId == newId }?.let { db.saveTrip(it.copy(spotName = name)) }
+                    // Every trip at that spot takes the name, not just one still running.
+                    db.trips().filter { it.spotId == newId && it.spotName == "Here" }.forEach { db.saveTrip(it.copy(spotName = name)) }
                     state.update { st2 -> st2.copy(spots = db.spots(), trips = db.trips(), activeTrip = st2.activeTrip?.let { a -> if (a.spotId == newId) a.copy(spotName = name) else a }, spot = st2.spot?.let { sp -> if (sp.id == newId) sp.copy(name = name) else sp }) }
                     app.afli.update.TripNotice.update(appContext)
                 }
             }
         }
-        val moved = st.spot?.id != target.id
-        state.update { (if (moved) it.cleared() else it).copy(activeTrip = trip, trips = db.trips(), spots = db.spots(), spot = target, lastEnded = null) }
+        // Same water as on screen (including "Here" becoming a saved spot): keep the forecast.
+        val moved = st.spot?.id != spot.id
+        if (!moved && spot.id == "here") st.forecast?.let { db.saveForecast(target.id, it) }
+        state.update { (if (moved) it.cleared() else it).copy(activeTrip = trip, trips = db.trips(), spots = db.spots(), spot = target, gps = gps ?: it.gps, lastEnded = null) }
         if (moved) refresh(context, useGps = false)
         app.afli.update.TripNotice.update(appContext)
     }
 
     /** Ends-by-mistake: puts the just-ended trip back on. */
     fun resumeTrip() {
-        val t = state.value.lastEnded ?: return
+        // From the saved trip, so sizes, notes and photos added since it ended are kept.
+        val t = db.trips().firstOrNull { it.id == state.value.lastEnded?.id } ?: return
         if (state.value.activeTrip != null) return
+        if (System.currentTimeMillis() - (t.end ?: 0L) > 30 * 60_000L) return
         val back = t.copy(end = null)
         db.saveTrip(back)
         state.update { it.copy(activeTrip = back, trips = db.trips(), lastEnded = null) }

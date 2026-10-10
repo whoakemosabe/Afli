@@ -65,27 +65,34 @@ fun TripContent(trip: Trip, s: app.afli.data.UiState, onShare: () -> Unit, onClo
     var note by remember(trip.id) { mutableStateOf(trip.note) }
     // Full-size photos straight from the camera into Afli's own folder.
     val context = androidx.compose.ui.platform.LocalContext.current
-    val pending = remember { arrayOfNulls<java.io.File>(1) }
+    // The path survives Android closing Afli behind the camera.
+    var pending by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf<String?>(null) }
     val takePhoto = rememberLauncherForActivityResult(ActivityResultContracts.TakePicture()) { ok ->
-        val f = pending[0]
+        val f = pending?.let { java.io.File(it) }
         if (ok && f != null && f.exists() && f.length() > 0) {
             Repo.addPhotoFile(trip.id, f.name)
             Haptics.confirm(view)
         } else f?.delete()
-        pending[0] = null
+        pending = null
     }
     fun shoot() {
         val f = Repo.newPhotoFile(trip.id)
-        pending[0] = f
+        pending = f.absolutePath
         val uri = androidx.core.content.FileProvider.getUriForFile(context, "${context.packageName}.files", f)
         runCatching { takePhoto.launch(uri) }
     }
-    // The note saves half a second after he stops typing, not on every key.
-    androidx.compose.runtime.LaunchedEffect(note) {
-        kotlinx.coroutines.delay(500)
+    fun saveNote() {
         val latest = Repo.state.value.trips.firstOrNull { it.id == trip.id } ?: Repo.state.value.activeTrip?.takeIf { it.id == trip.id }
         if (latest != null && latest.note != note) Repo.updateTrip(latest.copy(note = note))
     }
+    // The note saves half a second after he stops typing, not on every key...
+    androidx.compose.runtime.LaunchedEffect(note) {
+        kotlinx.coroutines.delay(500)
+        saveNote()
+    }
+    // ...and straight away if the sheet closes first.
+    val saveLater by androidx.compose.runtime.rememberUpdatedState(::saveNote)
+    androidx.compose.runtime.DisposableEffect(trip.id) { onDispose { saveLater() } }
     val mins = (((trip.end ?: System.currentTimeMillis()) - trip.start) / 60_000).toInt()
     val water = Fish.byId(trip.catches.firstOrNull()?.species ?: "")?.water
         ?: if (s.spots.firstOrNull { it.id == trip.spotId }?.water == Water.LAKE) Water.LAKE else Water.SEA

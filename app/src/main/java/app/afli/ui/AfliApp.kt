@@ -117,15 +117,17 @@ fun AfliApp() {
     val backdrop = rememberLayerBackdrop()
     var onboarded by remember { mutableStateOf(Repo.store().onboarded) }
     var tab by rememberSaveable { mutableIntStateOf(0) }
-    var sheet by remember { mutableStateOf<Sheet?>(null) }
-    var openTrip by remember { mutableStateOf<String?>(null) }
+    // Saveable, so a sheet (and the trip it shows) survives the camera or a rotation.
+    var sheet by rememberSaveable { mutableStateOf<Sheet?>(null) }
+    var openTrip by rememberSaveable { mutableStateOf<String?>(null) }
     // One scroll position per tab, so switching tabs and back keeps your place.
     val scrolls = List(4) { rememberScrollState() }
     val scope = rememberCoroutineScope()
     val calm = remember { SystemSettings.Global.getFloat(context.contentResolver, SystemSettings.Global.ANIMATOR_DURATION_SCALE, 1f) == 0f }
     val openUpdates by UpdateWatch.openUpdates.collectAsState()
 
-    LaunchedEffect(onboarded) { if (onboarded) Repo.refresh(context) }
+    // A bite alert asks for its own spot, so GPS mustn't override it on the first load.
+    LaunchedEffect(onboarded) { if (onboarded) Repo.refresh(context, useGps = Scrub.jump == null) }
     // A bite alert (or Forecast's See in Now) asks for an hour: show Now.
     LaunchedEffect(Scrub.jump) { if (Scrub.jump != null) tab = 0 }
     LaunchedEffect(OpenTab.request) {
@@ -290,25 +292,27 @@ fun AfliApp() {
 
             ExplainBubble(Modifier.align(Alignment.BottomCenter).navigationBarsPadding().padding(bottom = 92.dp))
             // "Trip deleted · Undo" floats above the bar on any screen, so it's never off-screen.
-            UndoBar(s.lastDeleted, Modifier.align(Alignment.BottomCenter).navigationBarsPadding().padding(bottom = 92.dp, start = 16.dp, end = 16.dp))
+            UndoBar(s.lastDeleted, Modifier.align(Alignment.BottomCenter).navigationBarsPadding().padding(bottom = 156.dp, start = 16.dp, end = 16.dp))
 
             // While a sheet slides away, keep showing what it held (sheet is already null then).
             val shownSheet = remember { arrayOfNulls<Sheet>(1) }
             if (sheet != null) shownSheet[0] = sheet
             val lastTrip = remember { arrayOfNulls<app.afli.data.Trip>(1) }
             (s.trips.firstOrNull { it.id == openTrip } ?: s.activeTrip?.takeIf { it.id == openTrip })?.let { lastTrip[0] = it }
+            val sheetNow = shownSheet[0]
+            val tripNow = lastTrip[0]
             SheetHost(sheet != null, onClose = { sheet = null }) {
-                when (shownSheet[0]) {
+                when (sheetNow) {
                     Sheet.SETTINGS -> SettingsContent(onManageSpots = { sheet = Sheet.SPOTS }, onReplayIntro = {
                         sheet = null
                         Repo.store().onboarded = false
                         onboarded = false
                     })
                     Sheet.FIX_SPOT -> s.spot?.let { SpotFixContent(it) { sheet = null } }
-                    Sheet.TRIP -> lastTrip[0]?.let {
+                    Sheet.TRIP -> tripNow?.let {
                         TripContent(it, s, onShare = { sheet = Sheet.SHARE }) { sheet = null }
                     }
-                    Sheet.SHARE -> lastTrip[0]?.let { ShareContent(it) }
+                    Sheet.SHARE -> tripNow?.let { ShareContent(it) }
                     Sheet.SPOTS -> SpotsContent(s) {
                         sheet = null
                         tab = 0

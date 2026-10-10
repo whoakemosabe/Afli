@@ -49,6 +49,8 @@ object TripNotice {
 
     private fun channels(context: Context) {
         val nm = context.getSystemService(NotificationManager::class.java) ?: return
+        // The first test build used a silent "trip" channel; remove it so settings show one.
+        if (nm.getNotificationChannel("trip") != null) nm.deleteNotificationChannel("trip")
         nm.createNotificationChannel(NotificationChannel(CH, t("Trip in progress", "Ferð í gangi"), NotificationManager.IMPORTANCE_DEFAULT).apply {
             // Default importance so it shows on the lock screen with its buttons; it never makes a sound.
             setSound(null, null)

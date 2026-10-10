@@ -61,6 +61,7 @@ fun ShareContent(trip: Trip) {
     val view = LocalView.current
     val scope = rememberCoroutineScope()
     val layer = rememberGraphicsLayer()
+    val img by rememberPhoto(trip.photos.firstOrNull(), 1200)
     Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
         Text(t("Share your catch", "Deildu aflanum"), style = T.title)
         Box(
@@ -69,9 +70,12 @@ fun ShareContent(trip: Trip) {
                 drawLayer(layer)
             },
         ) {
-            CatchCard(trip)
+            CatchCard(trip, img)
         }
+        // Wait for the photo, so the picture sent isn't the blank version.
+        val ready = trip.photos.isEmpty() || img != null
         GlassButton(t("Share", "Deila"), accent = C.brass, modifier = Modifier.fillMaxWidth(), onClick = {
+            if (!ready) return@GlassButton
             Haptics.confirm(view)
             scope.launch {
               runCatching {
@@ -88,15 +92,14 @@ fun ShareContent(trip: Trip) {
                 val uri = FileProvider.getUriForFile(context, "${context.packageName}.files", file)
                 val send = Intent(Intent.ACTION_SEND).setType("image/png").putExtra(Intent.EXTRA_STREAM, uri).addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
                 context.startActivity(Intent.createChooser(send, t("Share catch", "Deila afla")))
-              }.onFailure { Tips.explain(t("Couldn't make the picture. Try again.", "Náði ekki að búa til myndina. Reyndu aftur.")) }
+              }.onFailure { e -> if (e is kotlinx.coroutines.CancellationException) throw e; Tips.explain(t("Couldn't make the picture. Try again.", "Náði ekki að búa til myndina. Reyndu aftur.")) }
             }
         })
     }
 }
 
 @Composable
-private fun CatchCard(trip: Trip) {
-    val img by rememberPhoto(trip.photos.firstOrNull(), 1200)
+private fun CatchCard(trip: Trip, img: ImageBitmap?) {
     val mins = (((trip.end ?: System.currentTimeMillis()) - trip.start) / 60_000).toInt()
     val counts = trip.catches.groupBy { it.species }.entries.sortedByDescending { it.value.size }
     val biggest = trip.catches.filter { it.sizeCm != null }.maxByOrNull { it.sizeCm!! }
